@@ -66,10 +66,22 @@ const parser = new Parser({
   },
 });
 
-function flattenContext(ctx: EvaluationContext): Record<string, number> {
-  return {
+function normalizeFormula(expression: string): string {
+  if (!expression) return '0';
+  let expr = expression.trim();
+  // Handle "X% of Y" -> "(X / 100) * (Y)"
+  expr = expr.replace(/(\d+(?:\.\d+)?)\s*%\s*(?:of)?\s*([a-zA-Z0-9_.]+)/gi, '($1 / 100) * ($2)');
+  // Handle "rule.CODE" -> "CODE"
+  expr = expr.replace(/rule\.([a-zA-Z0-9_]+)/g, '$1');
+  return expr;
+}
+
+function flattenContext(ctx: EvaluationContext, computedRuleCodes: Record<string, number> = {}): Record<string, number> {
+  const vars: Record<string, number> = {
     // Contract
     'contract.wage': ctx.contract.wage,
+    'contract_wage': ctx.contract.wage,
+    wage: ctx.contract.wage,
     // Time
     worked_days: ctx.worked_days,
     planned_days: ctx.planned_days,
@@ -77,7 +89,7 @@ function flattenContext(ctx: EvaluationContext): Record<string, number> {
     planned_hours: ctx.planned_hours,
     overtime_hours: ctx.overtime_hours,
     loss_of_pay_days: ctx.loss_of_pay_days,
-    // Category totals (camelCase and dot-notation aliases)
+    // Category totals
     'categories.BASIC': ctx.categories.BASIC,
     'categories.ALW': ctx.categories.ALW,
     'categories.GROSS': ctx.categories.GROSS,
@@ -89,12 +101,21 @@ function flattenContext(ctx: EvaluationContext): Record<string, number> {
     ALW: ctx.categories.ALW,
     GROSS: ctx.categories.GROSS,
     DED: ctx.categories.DED,
+    NET: ctx.categories.NET,
   };
+
+  for (const [code, val] of Object.entries(computedRuleCodes)) {
+    vars[code] = val;
+    vars[`rule.${code}`] = val;
+  }
+
+  return vars;
 }
 
 function safeEvaluate(expression: string, variables: Record<string, number>): number {
   try {
-    const expr = parser.parse(expression);
+    const normalized = normalizeFormula(expression);
+    const expr = parser.parse(normalized);
     const result = expr.evaluate(variables);
     if (typeof result !== 'number' || !isFinite(result)) return 0;
     return Math.round(result * 100) / 100; // 2dp rounding
@@ -106,7 +127,8 @@ function safeEvaluate(expression: string, variables: Record<string, number>): nu
 function safeEvaluateBoolean(expression: string, variables: Record<string, number>): boolean {
   if (!expression || expression.trim() === 'true') return true;
   try {
-    const expr = parser.parse(expression);
+    const normalized = normalizeFormula(expression);
+    const expr = parser.parse(normalized);
     const result = expr.evaluate(variables);
     return Boolean(result);
   } catch {
@@ -128,11 +150,12 @@ export function evaluateRules(
 
   const lines: EvaluatedLine[] = [];
   const mutableCtx = structuredClone(context);
+  const computedRuleCodes: Record<string, number> = {};
 
   for (const rule of sortedRules) {
     if (!rule.isActive) continue;
 
-    const flatVars = flattenContext(mutableCtx);
+    const flatVars = flattenContext(mutableCtx, computedRuleCodes);
 
     // Evaluate condition
     const conditionResult = safeEvaluateBoolean(
@@ -167,6 +190,7 @@ export function evaluateRules(
 
     // Evaluate formula
     const amount = safeEvaluate(rule.formulaExpression, flatVars);
+    computedRuleCodes[rule.code] = amount;
 
     // Accumulate into category totals BEFORE the next rule
     switch (rule.category) {

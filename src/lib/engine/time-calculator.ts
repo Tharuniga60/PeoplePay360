@@ -168,8 +168,14 @@ export function deriveWorkedMetrics(
       }
       // 'holiday' and 'weekend' are already excluded by isWorkingDay check
     } else {
-      // No attendance record and no approved leave = LOP (gap)
-      lopDays += 1;
+      // If employee has attendance records for this period, unlogged working day is considered absent (LOP)
+      // Otherwise (no attendance tracking yet), default to worked day
+      if (attendances.length > 0) {
+        lopDays += 1;
+      } else {
+        workedDays += 1;
+        workedHours += schedule.dailyHours;
+      }
     }
   }
 

@@ -1,24 +1,45 @@
 import type { Metadata } from 'next';
 import { auth } from '@/auth';
+import { redirect } from 'next/navigation';
 import { db } from '@/db';
-import { leaveRequests } from '@/db/schema';
-import { and, eq } from 'drizzle-orm';
+import {
+  leaveRequests,
+  type LeaveRequest,
+  type Employee,
+  type LeaveType,
+} from '@/db/schema';
+import { and, eq, desc } from 'drizzle-orm';
 import Link from 'next/link';
-import { Calendar, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Calendar, CheckCircle, XCircle, Clock, Plus } from 'lucide-react';
 import { formatDate, LEAVE_STATUS_COLORS, cn, snakeToTitle, formatDateRange } from '@/lib/utils';
+import { canApproveLeave } from '@/lib/rbac';
+import { LeaveActionsClient } from './leave-actions-client';
 
 export const metadata: Metadata = { title: 'Leaves' };
+
+type LeaveWithRelations = LeaveRequest & {
+  employee: Employee;
+  leaveType: LeaveType | null;
+};
 
 export default async function LeavesPage() {
   const session = await auth();
 
-  const leaves = await db.query.leaveRequests.findMany({
-    with: { employee: true, leaveType: true },
-    orderBy: (l, { desc }) => [desc(l.createdAt)],
-  });
+  if (!session?.user) {
+    redirect('/login');
+  }
 
-  const pending = leaves.filter((l) => l.status === 'pending');
-  const others = leaves.filter((l) => l.status !== 'pending');
+  const isEmployee = session.user.role === 'employee';
+  const canApprove = canApproveLeave(session.user.role || '');
+
+  const leaves: LeaveWithRelations[] = (await db.query.leaveRequests.findMany({
+    where: isEmployee && session.user.employeeId ? eq(leaveRequests.employeeId, session.user.employeeId) : undefined,
+    with: { employee: true, leaveType: true },
+    orderBy: [desc(leaveRequests.createdAt)],
+  })) as LeaveWithRelations[];
+
+  const pending: LeaveWithRelations[] = leaves.filter((l: LeaveWithRelations) => l.status === 'pending');
+  const others: LeaveWithRelations[] = leaves.filter((l: LeaveWithRelations) => l.status !== 'pending');
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -27,10 +48,14 @@ export default async function LeavesPage() {
           <h1 className="text-2xl font-bold text-white tracking-tight">Leave Management</h1>
           <p className="text-[#6b7280] text-sm mt-0.5">{pending.length} pending approval</p>
         </div>
+        <Link href="/time-off/requests/new" className="btn-primary">
+          <Plus className="w-4 h-4" />
+          Request Leave
+        </Link>
       </div>
 
       {/* Pending Section */}
-      {pending.length > 0 && (
+      {canApprove && pending.length > 0 && (
         <div className="section-card">
           <div className="flex items-center gap-2 px-5 py-4 border-b border-[#2a2d3e]">
             <Clock className="w-4 h-4 text-yellow-400" />
@@ -49,7 +74,7 @@ export default async function LeavesPage() {
               </tr>
             </thead>
             <tbody>
-              {pending.map((leave) => (
+              {pending.map((leave: LeaveWithRelations) => (
                 <tr key={leave.id}>
                   <td>
                     <p className="font-medium text-white">
@@ -69,22 +94,7 @@ export default async function LeavesPage() {
                   <td className="text-[#6b7280] max-w-48 truncate text-xs">{leave.reason ?? '—'}</td>
                   <td className="text-[#6b7280] text-xs">{formatDate(leave.createdAt)}</td>
                   <td>
-                    <div className="flex items-center gap-2">
-                      <button
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-800/40 hover:bg-emerald-500/20 transition-colors"
-                        onClick={() => {}} // Client action — wire separately
-                      >
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        Approve
-                      </button>
-                      <button
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium bg-red-500/10 text-red-400 border border-red-800/40 hover:bg-red-500/20 transition-colors"
-                        onClick={() => {}}
-                      >
-                        <XCircle className="w-3.5 h-3.5" />
-                        Reject
-                      </button>
-                    </div>
+                    <LeaveActionsClient leaveId={leave.id} />
                   </td>
                 </tr>
               ))}
@@ -117,7 +127,7 @@ export default async function LeavesPage() {
               </tr>
             </thead>
             <tbody>
-              {leaves.map((leave) => (
+              {leaves.map((leave: LeaveWithRelations) => (
                 <tr key={leave.id}>
                   <td>
                     <p className="font-medium text-white">

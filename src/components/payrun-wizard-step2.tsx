@@ -135,6 +135,7 @@ export function PayrunWizardStep2({
               <th>Employee</th>
               <th>Code</th>
               <th>Wage</th>
+              <th>Attendance</th>
               <th>Warnings</th>
               <th>Status</th>
             </tr>
@@ -157,6 +158,11 @@ export function PayrunWizardStep2({
                   <td className="font-medium text-white">{c.fullName}</td>
                   <td><span className="font-mono text-xs text-[#4b5563]">{c.employeeCode}</span></td>
                   <td className="font-mono">₹{c.wage.toLocaleString('en-IN')}</td>
+                  <td>
+                    <span className="text-xs text-[#cbd5e1] font-mono">
+                      {c.attendanceDays !== undefined ? `${c.attendanceDays} days` : '—'}
+                    </span>
+                  </td>
                   <td>
                     {c.warnings.length > 0 && (
                       <span className="inline-flex items-center gap-1 text-xs text-yellow-400">

@@ -593,6 +593,7 @@ export const departmentsRelations = relations(departments, ({ one, many }) => ({
   branch: one(branches, { fields: [departments.branchId], references: [branches.id] }),
   employees: many(employees),
   jobPositions: many(jobPositions),
+  manager: one(employees, { fields: [departments.managerId], references: [employees.id] }),
 }));
 
 export const jobPositionsRelations = relations(jobPositions, ({ one }) => ({

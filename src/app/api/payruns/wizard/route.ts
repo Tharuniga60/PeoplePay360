@@ -4,15 +4,13 @@ import {
   contracts,
   employees,
   attendances,
-  leaveRequests,
   salaryRules,
-  workingSchedules,
-  scheduleLines,
 } from '@/db/schema';
-import { and, eq, gte, lte, isNotNull } from 'drizzle-orm';
+import { and, eq, gte, lte } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { wizardStep1Schema } from '@/lib/validations';
 import { parseISO } from 'date-fns';
+import { syncScheduleAttendance } from '@/lib/attendance';
 
 interface CandidateWarning {
   code: string;
@@ -26,6 +24,7 @@ interface WizardCandidate {
   fullName: string;
   contractId: string;
   wage: number;
+  attendanceDays: number;
   warnings: CandidateWarning[];
   isReady: boolean;
 }
@@ -40,7 +39,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Validation error', issues: parsed.error.issues }, { status: 400 });
   }
 
-  const { periodStart, periodEnd, salaryStructureId, companyId } = parsed.data;
+  const { periodStart, periodEnd, salaryStructureId, companyId, autoSyncAttendance = true } = parsed.data;
 
   // 1. Verify salary structure has rules
   const rules = await db
@@ -55,7 +54,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 2. Fetch all active contracts for this structure in this company
+  // 2. If autoSyncAttendance is enabled, synchronize working schedule attendance for candidates
+  if (autoSyncAttendance) {
+    try {
+      await syncScheduleAttendance({
+        companyId,
+        startDate: periodStart,
+        endDate: periodEnd,
+      });
+    } catch {
+      // Continue even if auto-sync encounters non-fatal condition
+    }
+  }
+
+  // 3. Fetch all active contracts for this structure in this company
   const activeContracts = await db.query.contracts.findMany({
     where: and(
       eq(contracts.salaryStructureId, salaryStructureId),
@@ -67,9 +79,6 @@ export async function POST(req: NextRequest) {
       },
     },
   });
-
-  const start = parseISO(periodStart);
-  const end = parseISO(periodEnd);
 
   const candidates: WizardCandidate[] = [];
 
@@ -96,8 +105,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Check: attendance coverage for the period
-    const attendanceCount = await db
-      .select({ id: attendances.id })
+    const empAttendances = await db
+      .select({
+        id: attendances.id,
+        status: attendances.status,
+        checkIn: attendances.checkIn,
+        checkOut: attendances.checkOut,
+        workedHours: attendances.workedHours,
+      })
       .from(attendances)
       .where(
         and(
@@ -107,8 +122,30 @@ export async function POST(req: NextRequest) {
         )
       );
 
-    if (attendanceCount.length === 0) {
-      warnings.push({ code: 'NO_ATTENDANCE', message: `No attendance records found for ${periodStart} – ${periodEnd}.`, severity: 'warning' });
+    if (empAttendances.length === 0) {
+      warnings.push({
+        code: 'NO_ATTENDANCE',
+        message: `No attendance records found for ${periodStart} – ${periodEnd}.`,
+        severity: 'warning',
+      });
+    } else {
+      // Check for notable attendance exceptions
+      const unexcusedAbsences = empAttendances.filter((a) => a.status === 'absent').length;
+      if (unexcusedAbsences > 0) {
+        warnings.push({
+          code: 'ABSENT_DAYS',
+          message: `${unexcusedAbsences} day(s) marked absent (loss of pay deduction will apply).`,
+          severity: 'warning',
+        });
+      }
+      const missingCheckout = empAttendances.filter((a) => a.status === 'present' && !a.checkOut).length;
+      if (missingCheckout > 0) {
+        warnings.push({
+          code: 'MISSING_CHECKOUT',
+          message: `${missingCheckout} check-in(s) missing checkout timestamp.`,
+          severity: 'info',
+        });
+      }
     }
 
     candidates.push({
@@ -117,6 +154,7 @@ export async function POST(req: NextRequest) {
       fullName: `${emp.firstName} ${emp.lastName}`,
       contractId: contract.id,
       wage: parseFloat(contract.wage.toString()),
+      attendanceDays: empAttendances.length,
       warnings,
       isReady: !warnings.some((w) => w.severity === 'critical'),
     });

@@ -25,6 +25,9 @@ export const createEmployeeSchema = z.object({
   dateOfJoining: z.string().min(1),
   employmentType: z.enum(['full_time', 'part_time', 'contract', 'intern']).default('full_time'),
   gender: z.string().max(20).optional(),
+  panNumber: z.string().max(20).optional(),
+  pfAccountNumber: z.string().max(50).optional(),
+  esiNumber: z.string().max(50).optional(),
   bankName: z.string().max(255).optional(),
   bankAccountNumber: z.string().max(100).optional(),
   bankIfscCode: z.string().max(20).optional(),
@@ -98,6 +101,7 @@ export const wizardStep1Schema = z.object({
   periodEnd: z.string().min(1),
   salaryStructureId: z.string().uuid(),
   companyId: z.string().uuid(),
+  autoSyncAttendance: z.boolean().optional(),
 });
 
 export type WizardStep1Input = z.infer<typeof wizardStep1Schema>;
@@ -117,3 +121,73 @@ export const createPayrunSchema = z.object({
 });
 
 export type CreatePayrunInput = z.infer<typeof createPayrunSchema>;
+
+// ─────────────────────────────────────────────
+// CONFIGURATION & MASTER DATA
+// ─────────────────────────────────────────────
+
+export const createDepartmentSchema = z.object({
+  companyId: z.string().uuid(),
+  branchId: z.string().uuid().optional(),
+  name: z.string().min(1).max(255),
+  code: z.string().max(50).optional(),
+  managerId: z.string().uuid().optional(),
+});
+export type CreateDepartmentInput = z.infer<typeof createDepartmentSchema>;
+
+export const createJobPositionSchema = z.object({
+  companyId: z.string().uuid(),
+  departmentId: z.string().uuid().optional(),
+  title: z.string().min(1).max(255),
+  code: z.string().max(50).optional(),
+  description: z.string().optional(),
+});
+export type CreateJobPositionInput = z.infer<typeof createJobPositionSchema>;
+
+export const createWorkingScheduleSchema = z.object({
+  companyId: z.string().uuid(),
+  name: z.string().min(1).max(255),
+  hoursPerWeek: z.number().min(0).max(168).default(40),
+  timezone: z.string().max(100).default('Asia/Kolkata'),
+});
+export type CreateWorkingScheduleInput = z.infer<typeof createWorkingScheduleSchema>;
+
+export const createSalaryStructureSchema = z.object({
+  companyId: z.string().uuid(),
+  name: z.string().min(1).max(255),
+  code: z.string().min(1).max(50),
+  description: z.string().optional(),
+});
+export type CreateSalaryStructureInput = z.infer<typeof createSalaryStructureSchema>;
+
+export const createSalaryRuleSchema = z.object({
+  salaryStructureId: z.string().uuid(),
+  sequence: z.number().int().positive(),
+  code: z.string().min(1).max(50),
+  name: z.string().min(1).max(255),
+  category: z.enum(['BASIC', 'ALW', 'GROSS', 'DED', 'NET', 'OTHER']),
+  computationType: z.enum(['fixed', 'formula', 'python_code']).default('formula'),
+  conditionExpression: z.string().default('true'),
+  formulaExpression: z.string().min(1),
+  description: z.string().optional(),
+  appearsOnPayslip: z.boolean().default(true),
+});
+export type CreateSalaryRuleInput = z.infer<typeof createSalaryRuleSchema>;
+
+export const createLeaveTypeSchema = z.object({
+  companyId: z.string().uuid(),
+  name: z.string().min(1).max(255),
+  code: z.string().min(1).max(50),
+  description: z.string().optional(),
+  isPaid: z.boolean().default(true),
+  maxDaysPerYear: z.number().int().min(0).default(0),
+});
+export type CreateLeaveTypeInput = z.infer<typeof createLeaveTypeSchema>;
+
+export const createLeaveAllocationSchema = z.object({
+  employeeId: z.string().uuid(),
+  leaveTypeId: z.string().uuid(),
+  year: z.number().int().min(2000).max(2100),
+  totalDays: z.number().positive(),
+});
+export type CreateLeaveAllocationInput = z.infer<typeof createLeaveAllocationSchema>;

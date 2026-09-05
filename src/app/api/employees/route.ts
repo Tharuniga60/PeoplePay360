@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { employees } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { employees, contracts } from '@/db/schema';
+import { eq, asc } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { createEmployeeSchema } from '@/lib/validations';
 import { logAuditEvent } from '@/lib/audit';
+import { canManageEmployees } from '@/lib/rbac';
 
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  if (!canManageEmployees(session.user.role || '')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   const { searchParams } = new URL(req.url);
   const companyId = searchParams.get('companyId') ?? session.user.companyId;
@@ -19,11 +24,11 @@ export async function GET(req: NextRequest) {
       department: true,
       jobPosition: true,
       contracts: {
-        where: (c, { eq: eqFn }) => eqFn(c.status, 'active'),
+        where: eq(contracts.status, 'active'),
         limit: 1,
       },
     },
-    orderBy: (e, { asc }) => [asc(e.firstName), asc(e.lastName)],
+    orderBy: [asc(employees.firstName), asc(employees.lastName)],
   });
 
   return NextResponse.json({ data: result });
@@ -32,6 +37,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  if (!canManageEmployees(session.user.role || '')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   const body = await req.json();
   const parsed = createEmployeeSchema.safeParse(body);

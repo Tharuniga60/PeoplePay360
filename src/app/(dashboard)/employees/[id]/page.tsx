@@ -3,16 +3,29 @@ import { notFound } from 'next/navigation';
 import { auth } from '@/auth';
 import { db } from '@/db';
 import { employees, contracts, attendances, leaveAllocations, payslips } from '@/db/schema';
-import { eq, and, count, sum } from 'drizzle-orm';
+import { eq, and, count, sum, desc } from 'drizzle-orm';
 import Link from 'next/link';
-import { ArrowLeft, Mail, Phone, Building2, Briefcase, CreditCard, Calendar } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, Building2, Briefcase, CreditCard, Calendar, Plus } from 'lucide-react';
 import { formatDate, formatCurrency, getInitials, CONTRACT_STATUS_COLORS, cn, snakeToTitle } from '@/lib/utils';
 import { EmployeeSmartButtons } from '@/components/employee-smart-buttons';
+import { canManageEmployees } from '@/lib/rbac';
+import { redirect } from 'next/navigation';
 
 export const metadata: Metadata = { title: 'Employee Details' };
 
 export default async function EmployeeDetailPage({ params }: { params: { id: string } }) {
   const session = await auth();
+
+  if (!session?.user) {
+    redirect('/login');
+  }
+
+  const role = session.user.role || '';
+  const isManager = canManageEmployees(role);
+
+  if (!isManager && session.user.employeeId !== params.id) {
+    redirect('/?error=unauthorized');
+  }
 
   const employee = await db.query.employees.findFirst({
     where: and(eq(employees.id, params.id), eq(employees.companyId, session!.user.companyId)),
@@ -21,7 +34,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
       jobPosition: true,
       branch: true,
       contracts: {
-        orderBy: (c, { desc }) => [desc(c.startDate)],
+        orderBy: [desc(contracts.startDate)],
         with: { salaryStructure: true },
       },
     },
@@ -57,10 +70,12 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Back */}
-      <Link href="/employees" className="inline-flex items-center gap-1.5 text-sm text-[#6b7280] hover:text-white transition-colors">
-        <ArrowLeft className="w-4 h-4" />
-        Back to Employees
-      </Link>
+      {isManager && (
+        <Link href="/employees" className="inline-flex items-center gap-1.5 text-sm text-[#6b7280] hover:text-white transition-colors">
+          <ArrowLeft className="w-4 h-4" />
+          Back to Employees
+        </Link>
+      )}
 
       {/* Employee Header */}
       <div className="section-card p-6">
@@ -171,8 +186,14 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
 
       {/* Contract History */}
       <div className="section-card">
-        <div className="px-5 py-4 border-b border-[#2a2d3e]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#2a2d3e]">
           <h2 className="text-sm font-semibold text-white">Contract History</h2>
+          {isManager && (
+            <Link href={`/employees/${employee.id}/contracts/new`} className="btn-primary text-xs">
+              <Plus className="w-3.5 h-3.5" />
+              New Contract
+            </Link>
+          )}
         </div>
         <table className="data-table">
           <thead>

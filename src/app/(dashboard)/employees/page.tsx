@@ -1,29 +1,58 @@
 import type { Metadata } from 'next';
 import { auth } from '@/auth';
 import { db } from '@/db';
-import { employees } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import {
+  employees,
+  contracts,
+  type Employee,
+  type Department,
+  type JobPosition,
+  type Contract,
+} from '@/db/schema';
+import { eq, asc } from 'drizzle-orm';
 import Link from 'next/link';
 import { Users, Plus, ChevronRight, Search } from 'lucide-react';
 import { formatDate, CONTRACT_STATUS_COLORS, cn, snakeToTitle, getInitials } from '@/lib/utils';
+import { canManageEmployees } from '@/lib/rbac';
+import { redirect } from 'next/navigation';
+import { EmployeeListClient } from './employee-list-client';
 
 export const metadata: Metadata = { title: 'Employees' };
+
+type EmployeeWithRelations = Employee & {
+  department: Department | null;
+  jobPosition: JobPosition | null;
+  contracts: Contract[];
+};
 
 export default async function EmployeesPage() {
   const session = await auth();
 
-  const empList = await db.query.employees.findMany({
+  if (!session?.user) {
+    redirect('/login');
+  }
+
+  const role = session.user.role || '';
+  if (!canManageEmployees(role)) {
+    if (session.user.employeeId) {
+      redirect(`/employees/${session.user.employeeId}`);
+    } else {
+      redirect('/?error=unauthorized');
+    }
+  }
+
+  const empList: EmployeeWithRelations[] = (await db.query.employees.findMany({
     where: eq(employees.companyId, session!.user.companyId),
     with: {
       department: true,
       jobPosition: true,
       contracts: {
-        where: (c, { eq: eqFn }) => eqFn(c.status, 'active'),
+        where: eq(contracts.status, 'active'),
         limit: 1,
       },
     },
-    orderBy: (e, { asc }) => [asc(e.firstName)],
-  });
+    orderBy: [asc(employees.firstName)],
+  })) as EmployeeWithRelations[];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -39,78 +68,24 @@ export default async function EmployeesPage() {
         </Link>
       </div>
 
-      {/* Employee Table */}
-      <div className="section-card">
-        {empList.length === 0 ? (
-          <div className="py-20 text-center">
-            <Users className="w-12 h-12 text-[#2a2d3e] mx-auto mb-4" />
-            <p className="text-[#4b5563] text-sm">No employees found.</p>
-            <p className="text-[#374151] text-xs mt-1">Add your first employee to get started.</p>
-          </div>
-        ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Employee</th>
-                <th>Code</th>
-                <th>Department</th>
-                <th>Position</th>
-                <th>Joined</th>
-                <th>Contract</th>
-                <th>Status</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {empList.map((emp) => {
-                const activeContract = emp.contracts[0];
-                return (
-                  <tr key={emp.id}>
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#3b6ef0]/20 flex items-center justify-center text-[#3b6ef0] text-xs font-bold flex-shrink-0">
-                          {getInitials(emp.firstName, emp.lastName)}
-                        </div>
-                        <div>
-                          <p className="font-medium text-white">{emp.firstName} {emp.lastName}</p>
-                          <p className="text-xs text-[#4b5563]">{emp.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td><span className="font-mono text-xs text-[#6b7280]">{emp.employeeCode}</span></td>
-                    <td>{emp.department?.name ?? '—'}</td>
-                    <td>{emp.jobPosition?.title ?? '—'}</td>
-                    <td className="text-[#6b7280]">{formatDate(emp.dateOfJoining)}</td>
-                    <td>
-                      {activeContract ? (
-                        <span className={cn('status-pill', CONTRACT_STATUS_COLORS['active'])}>
-                          Active
-                        </span>
-                      ) : (
-                        <span className={cn('status-pill', CONTRACT_STATUS_COLORS['expired'])}>
-                          No Contract
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <span className={cn('status-pill', emp.isActive
-                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-800/40'
-                        : 'bg-red-500/10 text-red-400 border border-red-800/40')}>
-                        {emp.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td>
-                      <Link href={`/employees/${emp.id}`} className="text-[#3b6ef0] hover:text-blue-300 flex items-center gap-0.5 text-xs justify-end">
-                        View <ChevronRight className="w-3 h-3" />
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {/* Employee List with Kanban & Table Views */}
+      <EmployeeListClient
+        employees={empList.map((emp) => ({
+          id: emp.id,
+          employeeCode: emp.employeeCode,
+          firstName: emp.firstName,
+          lastName: emp.lastName,
+          email: emp.email,
+          dateOfJoining: emp.dateOfJoining,
+          department: emp.department ? { name: emp.department.name } : null,
+          jobPosition: emp.jobPosition ? { title: emp.jobPosition.title } : null,
+          contracts: emp.contracts.map((c) => ({
+            id: c.id,
+            status: c.status,
+            name: c.name,
+          })),
+        }))}
+      />
     </div>
   );
 }

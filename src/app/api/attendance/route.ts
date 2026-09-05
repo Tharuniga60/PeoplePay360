@@ -18,6 +18,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'employeeId is required' }, { status: 400 });
   }
 
+  if (session.user.role === 'employee' && session.user.employeeId !== employeeId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const conditions = [eq(attendances.employeeId, employeeId)];
   if (from) conditions.push(gte(attendances.attendanceDate, from));
   if (to) conditions.push(lte(attendances.attendanceDate, to));
@@ -43,6 +47,13 @@ export async function POST(req: NextRequest) {
   const errors = parsed.filter((p) => !p.success);
   if (errors.length > 0) {
     return NextResponse.json({ error: 'Validation error', issues: errors }, { status: 400 });
+  }
+
+  if (session.user.role === 'employee') {
+    const isOnlySelf = parsed.every((p) => (p as { success: true; data: any }).data.employeeId === session.user.employeeId);
+    if (!isOnlySelf) {
+      return NextResponse.json({ error: 'Forbidden: Can only submit own attendance' }, { status: 403 });
+    }
   }
 
   const values = parsed.map((p) => {

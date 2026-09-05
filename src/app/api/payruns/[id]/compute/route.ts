@@ -18,6 +18,7 @@ import { logAuditEvent } from '@/lib/audit';
 import { deriveWorkedMetrics, calculatePlannedHours } from '@/lib/engine/time-calculator';
 import { evaluateRules, computeCategoryTotals, type EvaluationContext } from '@/lib/engine/rule-evaluator';
 import { detectAnomalies } from '@/lib/engine/anomaly-detector';
+import { syncScheduleAttendance } from '@/lib/attendance';
 
 export async function POST(
   _req: NextRequest,
@@ -90,7 +91,7 @@ export async function POST(
       (activeContract.schedule?.scheduleLines ?? emp.defaultSchedule?.scheduleLines ?? []) as typeof scheduleLines.$inferSelect[];
 
     // Fetch attendance for the period
-    const empAttendances = await db
+    let empAttendances = await db
       .select()
       .from(attendances)
       .where(
@@ -100,6 +101,30 @@ export async function POST(
           lte(attendances.attendanceDate, payrun.periodEnd)
         )
       );
+
+    // If no attendance records exist for this period, auto-sync from schedule
+    if (empAttendances.length === 0) {
+      try {
+        await syncScheduleAttendance({
+          companyId: payrun.companyId,
+          startDate: payrun.periodStart,
+          endDate: payrun.periodEnd,
+          employeeIds: [emp.id],
+        });
+        empAttendances = await db
+          .select()
+          .from(attendances)
+          .where(
+            and(
+              eq(attendances.employeeId, emp.id),
+              gte(attendances.attendanceDate, payrun.periodStart),
+              lte(attendances.attendanceDate, payrun.periodEnd)
+            )
+          );
+      } catch {
+        // Continue with available records
+      }
+    }
 
     // Fetch approved leaves for the period
     const empLeaves = await db

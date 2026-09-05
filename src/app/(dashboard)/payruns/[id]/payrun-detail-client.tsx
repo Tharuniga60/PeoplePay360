@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Play, CheckCircle, Receipt, AlertTriangle, Eye, Loader2 } from 'lucide-react';
+import { ArrowLeft, Play, CheckCircle, Receipt, AlertTriangle, Eye, Loader2, Calendar } from 'lucide-react';
 import { formatDate, formatCurrency, PAYRUN_STATUS_COLORS, ANOMALY_SEVERITY_COLORS, cn, snakeToTitle } from '@/lib/utils';
 import { AnomalyBanner } from '@/components/anomaly-banner';
 import { ExplainSalaryModal } from '@/components/explain-salary-modal';
@@ -60,6 +60,7 @@ interface PayrunDetailClientProps {
 export function PayrunDetailClient({ payrun, userRole }: PayrunDetailClientProps) {
   const [computing, setComputing] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [markingPaid, setMarkingPaid] = useState(false);
   const [currentPayrun, setCurrentPayrun] = useState(payrun);
   const [explainModal, setExplainModal] = useState<{ open: boolean; employeeName: string; lines: typeof payrun.payslips[0]['lines'] }>({
     open: false,
@@ -103,6 +104,22 @@ export function PayrunDetailClient({ payrun, userRole }: PayrunDetailClientProps
     }
   }
 
+  async function handleMarkPaid() {
+    if (!confirm('Mark this payrun as PAID? This will lock the payrun and all payslips permanently.')) return;
+    setMarkingPaid(true);
+    try {
+      const res = await fetch(`/api/payruns/${currentPayrun.id}/mark-paid`, { method: 'POST' });
+      const json = await res.json();
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        alert(json.error ?? 'Mark paid failed');
+      }
+    } finally {
+      setMarkingPaid(false);
+    }
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Back */}
@@ -122,6 +139,13 @@ export function PayrunDetailClient({ payrun, userRole }: PayrunDetailClientProps
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <Link
+              href={`/attendance`}
+              className="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3"
+            >
+              <Calendar className="w-3.5 h-3.5 text-[#3b6ef0]" />
+              View Attendance
+            </Link>
             <span className={cn('status-pill text-sm', PAYRUN_STATUS_COLORS[currentPayrun.status])}>
               {snakeToTitle(currentPayrun.status)}
             </span>
@@ -133,6 +157,11 @@ export function PayrunDetailClient({ payrun, userRole }: PayrunDetailClientProps
             {['computed', 'validated'].includes(currentPayrun.status) && canApprove && (
               <button onClick={handleApprove} disabled={approving} className="btn-primary">
                 {approving ? <><Loader2 className="w-4 h-4 animate-spin" />Approving...</> : <><CheckCircle className="w-4 h-4" />Approve</>}
+              </button>
+            )}
+            {currentPayrun.status === 'approved' && canApprove && (
+              <button onClick={handleMarkPaid} disabled={markingPaid} className="btn-primary bg-emerald-600 hover:bg-emerald-500">
+                {markingPaid ? <><Loader2 className="w-4 h-4 animate-spin" />Marking Paid...</> : <><CheckCircle className="w-4 h-4" />Mark as Paid</>}
               </button>
             )}
           </div>
@@ -214,7 +243,15 @@ export function PayrunDetailClient({ payrun, userRole }: PayrunDetailClientProps
                     <p className="font-medium text-white">{ps.employee.firstName} {ps.employee.lastName}</p>
                     <p className="text-xs text-[#4b5563]">{ps.employee.employeeCode}</p>
                   </td>
-                  <td>{parseFloat(ps.workedDays?.toString() ?? '0')}</td>
+                  <td>
+                    <Link
+                      href={`/attendance?employee_id=${ps.employeeId}`}
+                      className="text-white hover:text-blue-400 underline decoration-dotted underline-offset-2 transition-colors"
+                      title="View daily attendance records for this employee"
+                    >
+                      {parseFloat(ps.workedDays?.toString() ?? '0')} days
+                    </Link>
+                  </td>
                   <td>
                     <span className={cn(parseFloat(ps.lopDays?.toString() ?? '0') > 0 ? 'text-yellow-400 font-medium' : '')}>
                       {parseFloat(ps.lopDays?.toString() ?? '0')}
