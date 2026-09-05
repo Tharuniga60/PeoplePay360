@@ -2,6 +2,7 @@ import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import { canManageEmployees } from '@/lib/rbac';
 import { NewScheduleClient } from './new-schedule-client';
 
 export default async function NewWorkingSchedulePage() {
@@ -9,7 +10,7 @@ export default async function NewWorkingSchedulePage() {
   if (!session?.user) redirect('/login');
 
   const role = session.user.role;
-  if (!['admin', 'hr_manager', 'hr_payroll_manager'].includes(role)) {
+  if (!canManageEmployees(role)) {
     redirect('/working-schedules');
   }
 

@@ -6,11 +6,17 @@ import { eq } from 'drizzle-orm';
 import Link from 'next/link';
 import { DollarSign, Plus, ChevronRight, Play } from 'lucide-react';
 import { formatDate, formatCurrency, PAYRUN_STATUS_COLORS, cn, snakeToTitle } from '@/lib/utils';
+import { canAccessPayroll } from '@/lib/rbac';
+import { redirect } from 'next/navigation';
 
 export const metadata: Metadata = { title: 'Pay Runs' };
 
 export default async function PayrunsPage() {
   const session = await auth();
+
+  if (!canAccessPayroll(session?.user?.role || '')) {
+    redirect('/?error=unauthorized');
+  }
 
   const payrunList = await db.query.payruns.findMany({
     where: eq(payruns.companyId, session!.user.companyId),

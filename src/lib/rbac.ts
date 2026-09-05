@@ -57,13 +57,15 @@ export function assertCanAccessPayslip(
 
 /**
  * Check if the user can manage (create/edit) employees.
+ * HR Manager, HR Payroll Manager, HR Payroll User, and Admin have employee CRUD.
  */
 export function canManageEmployees(userRole: string): boolean {
-  return hasRole(userRole, ['admin', 'hr_manager', 'hr_payroll_manager']);
+  return hasRole(userRole, ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user']);
 }
 
 /**
  * Check if the user can approve payruns.
+ * Only Admin and HR Payroll Manager can approve (HR Payroll User has Create/Read/Update only).
  */
 export function canApprovePayrun(userRole: string): boolean {
   return hasRole(userRole, ['admin', 'hr_payroll_manager']);
@@ -80,7 +82,7 @@ export function canComputePayrun(userRole: string): boolean {
  * Check if the user can approve leave requests.
  */
 export function canApproveLeave(userRole: string): boolean {
-  return hasRole(userRole, ['admin', 'hr_manager', 'hr_payroll_manager']);
+  return hasRole(userRole, ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user']);
 }
 
 /**

@@ -7,10 +7,14 @@ import Link from 'next/link';
 import { Settings, ChevronRight, BookOpen, Plus, CheckCircle } from 'lucide-react';
 import { formatDate, cn } from '@/lib/utils';
 
+import { canManagePayrollConfig } from '@/lib/rbac';
+
 export const metadata: Metadata = { title: 'Salary Structures' };
 
 export default async function SalaryStructuresPage() {
   const session = await auth();
+  const role = session?.user?.role || '';
+  const isConfigManager = canManagePayrollConfig(role);
 
   const structures = await db.query.salaryStructures.findMany({
     where: eq(salaryStructures.companyId, session!.user.companyId),
@@ -25,10 +29,16 @@ export default async function SalaryStructuresPage() {
           <h1 className="text-2xl font-bold text-white tracking-tight">Salary Structures</h1>
           <p className="text-[#6b7280] text-sm mt-0.5">Configure salary rules and computation formulas</p>
         </div>
-        <Link href="/salary-structures/new" className="btn-primary">
-          <Plus className="w-4 h-4" />
-          New Structure
-        </Link>
+        {isConfigManager ? (
+          <Link href="/salary-structures/new" className="btn-primary">
+            <Plus className="w-4 h-4" />
+            New Structure
+          </Link>
+        ) : (
+          <span className="text-xs px-2.5 py-1 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-400 font-medium">
+            Read-Only (HR Payroll User)
+          </span>
+        )}
       </div>
 
       {structures.length === 0 ? (

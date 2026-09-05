@@ -79,3 +79,12 @@ export const LEAVE_STATUS_COLORS: Record<string, string> = {
   rejected: 'bg-danger/10 text-red-400 border border-red-800/40',
   cancelled: 'bg-surface-elevated text-muted-foreground border border-border',
 };
+
+export const ATTENDANCE_STATUS_COLORS: Record<string, string> = {
+  present: 'bg-emerald-500/10 text-emerald-400 border border-emerald-800/40',
+  absent: 'bg-red-500/10 text-red-400 border border-red-800/40',
+  half_day: 'bg-yellow-500/10 text-yellow-400 border border-yellow-800/40',
+  on_leave: 'bg-blue-500/10 text-blue-400 border border-blue-800/40',
+  weekend: 'bg-surface-elevated text-muted-foreground border border-border',
+  holiday: 'bg-purple-500/10 text-purple-400 border border-purple-800/40',
+};

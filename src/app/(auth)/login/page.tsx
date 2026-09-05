@@ -4,6 +4,7 @@ import { useState, Suspense } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2, Lock, Mail, AlertCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 function LoginContent() {
   const router = useRouter();
@@ -130,24 +131,92 @@ function LoginContent() {
             </button>
           </form>
 
-          {/* Demo credentials */}
+          {/* Demo credentials with all 5 roles */}
           <div className="mt-6 pt-5 border-t border-[#2a2d3e]">
-            <p className="text-xs text-[#4b5563] mb-3 font-medium uppercase tracking-wider">Demo Accounts</p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs text-[#4b5563] font-medium uppercase tracking-wider">Demo Accounts (5 Roles)</p>
+              <span className="text-[10px] text-[#3b6ef0] bg-[#3b6ef0]/10 border border-[#3b6ef0]/20 px-1.5 py-0.5 rounded font-mono">1-Click Login</span>
+            </div>
             <div className="space-y-2 text-xs">
               {[
-                { role: 'Admin', email: 'admin@peoplepay360.com', pass: 'admin123' },
-                { role: 'Payroll Manager', email: 'payroll@peoplepay360.com', pass: 'payroll123' },
-                { role: 'Employee', email: 'john@peoplepay360.com', pass: 'employee123' },
+                {
+                  role: 'Employee',
+                  tag: 'Self-Service',
+                  email: 'john@peoplepay360.com',
+                  pass: 'employee123',
+                  badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+                  desc: 'Own profile, attendance, leave requests. No payroll/admin access.',
+                },
+                {
+                  role: 'HR Manager',
+                  tag: 'HR Operations',
+                  email: 'hrmanager@peoplepay360.com',
+                  pass: 'hrmanager123',
+                  badgeColor: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+                  desc: 'Full CRUD on Employees, Attendance, Contracts, Schedules, Leaves. No payroll.',
+                },
+                {
+                  role: 'HR Payroll User',
+                  tag: 'Payroll Ops',
+                  email: 'payrolluser@peoplepay360.com',
+                  pass: 'payrolluser123',
+                  badgeColor: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+                  desc: 'HR CRUD + Payruns/Payslips CRUD. Read-only on Salary Structures & Rules.',
+                },
+                {
+                  role: 'HR Payroll Manager',
+                  tag: 'Payroll Lead',
+                  email: 'payroll@peoplepay360.com',
+                  pass: 'payroll123',
+                  badgeColor: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+                  desc: 'Full CRUD on Payruns, Payslips, Salary Structures & Rules + Payrun Approval.',
+                },
+                {
+                  role: 'Admin',
+                  tag: 'Super Admin',
+                  email: 'admin@peoplepay360.com',
+                  pass: 'admin123',
+                  badgeColor: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+                  desc: 'Full system control, User Management (/admin/users), Role & Credential resets.',
+                },
               ].map((cred) => (
                 <button
                   key={cred.email}
                   type="button"
-                  onClick={() => { setEmail(cred.email); setPassword(cred.pass); }}
-                  className="w-full flex justify-between items-center px-3 py-2 rounded-lg bg-[#111318] border border-[#2a2d3e]
-                             hover:border-[#3b6ef0]/40 transition-colors text-[#6b7280] hover:text-[#e2e8f0]"
+                  onClick={async () => {
+                    setEmail(cred.email);
+                    setPassword(cred.pass);
+                    setError('');
+                    setLoading(true);
+                    try {
+                      const res = await signIn('credentials', {
+                        email: cred.email,
+                        password: cred.pass,
+                        redirect: false,
+                      });
+                      if (res?.error) {
+                        setError('Failed to login with demo account.');
+                      } else {
+                        router.push(callbackUrl);
+                        router.refresh();
+                      }
+                    } catch {
+                      setError('Unexpected login error.');
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  className="w-full text-left p-2.5 rounded-xl bg-[#111318] border border-[#2a2d3e]
+                             hover:border-[#3b6ef0]/50 hover:bg-[#151922] transition-all group"
                 >
-                  <span className="font-medium">{cred.role}</span>
-                  <span className="text-[#4b5563]">{cred.email}</span>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="font-semibold text-white group-hover:text-[#3b6ef0] transition-colors">{cred.role}</span>
+                    <span className={cn('text-[10px] px-1.5 py-0.5 rounded border font-medium', cred.badgeColor)}>
+                      {cred.tag}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#6b7280] line-clamp-1 mb-1">{cred.desc}</p>
+                  <p className="text-[10px] font-mono text-[#4b5563] group-hover:text-[#9ca3af] transition-colors">{cred.email}</p>
                 </button>
               ))}
             </div>

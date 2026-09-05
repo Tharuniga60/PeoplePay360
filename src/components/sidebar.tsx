@@ -173,8 +173,8 @@ export function Sidebar() {
           )}
         </div>
 
-        {/* Payroll Dropdown - Restricted from HR Manager */}
-        {(canCompute || role === 'employee') && (
+        {/* Payroll Dropdown - Accessible ONLY by Payroll Users and Admin (Restricted from HR Manager and Employee) */}
+        {canCompute && (
           <div className="pt-1">
             <button
               type="button"
@@ -198,17 +198,15 @@ export function Sidebar() {
 
             {payrollOpen && (
               <div className="pl-7 pr-1 mt-1 space-y-0.5 animate-fade-in border-l border-[#1e2235] ml-4">
-                {canCompute && (
-                  <Link
-                    href="/payroll/payruns"
-                    className={cn(
-                      'sidebar-link text-xs py-1.5',
-                      (pathname.startsWith('/payroll/payruns') || pathname.startsWith('/payruns')) && 'active'
-                    )}
-                  >
-                    Payruns
-                  </Link>
-                )}
+                <Link
+                  href="/payroll/payruns"
+                  className={cn(
+                    'sidebar-link text-xs py-1.5',
+                    (pathname.startsWith('/payroll/payruns') || pathname.startsWith('/payruns')) && 'active'
+                  )}
+                >
+                  Payruns
+                </Link>
                 <Link
                   href="/payroll/payslips"
                   className={cn(
@@ -216,37 +214,33 @@ export function Sidebar() {
                     (pathname.startsWith('/payroll/payslips') || pathname.startsWith('/payslips')) && 'active'
                   )}
                 >
-                  {role === 'employee' ? 'My Payslips' : 'Payslips'}
+                  Payslips
                 </Link>
-                {canCompute && (
-                  <>
-                    <Link
-                      href="/payroll/structures"
-                      className={cn(
-                        'sidebar-link text-xs py-1.5',
-                        (pathname.startsWith('/payroll/structures') || pathname.startsWith('/salary-structures')) && 'active'
-                      )}
-                    >
-                      Salary Structures
-                    </Link>
-                    <Link
-                      href="/payroll/rules"
-                      className={cn(
-                        'sidebar-link text-xs py-1.5',
-                        pathname.startsWith('/payroll/rules') && 'active'
-                      )}
-                    >
-                      Salary Rules
-                    </Link>
-                  </>
-                )}
+                <Link
+                  href="/payroll/structures"
+                  className={cn(
+                    'sidebar-link text-xs py-1.5',
+                    (pathname.startsWith('/payroll/structures') || pathname.startsWith('/salary-structures')) && 'active'
+                  )}
+                >
+                  Salary Structures
+                </Link>
+                <Link
+                  href="/payroll/rules"
+                  className={cn(
+                    'sidebar-link text-xs py-1.5',
+                    pathname.startsWith('/payroll/rules') && 'active'
+                  )}
+                >
+                  Salary Rules
+                </Link>
               </div>
             )}
           </div>
         )}
 
-        {/* Reports */}
-        {canCompute && (
+        {/* Reports - Accessible to HR & Payroll management */}
+        {(isManager || canCompute) && (
           <Link
             href="/reports/dashboard"
             className={cn('sidebar-link', pathname.startsWith('/reports') && 'active')}
@@ -291,8 +285,16 @@ export function Sidebar() {
             {session?.user?.name ? getInitials(session.user.name.split(' ')[0], session.user.name.split(' ')[1] ?? '') : 'U'}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-white truncate">{session?.user?.name ?? 'User'}</p>
-            <p className="text-[10px] text-[#4b5563] truncate capitalize">{snakeToTitle(role)}</p>
+            <p className="text-xs font-medium text-white truncate">{session?.user?.name ?? session?.user?.email?.split('@')[0] ?? 'User'}</p>
+            <p className="text-[10px] text-blue-400 font-medium truncate">
+              {{
+                admin: 'System Administrator',
+                hr_manager: 'HR Manager',
+                hr_payroll_user: 'HR Payroll User',
+                hr_payroll_manager: 'HR Payroll Manager',
+                employee: 'Employee',
+              }[role] ?? snakeToTitle(role)}
+            </p>
           </div>
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}

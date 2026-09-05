@@ -23,6 +23,10 @@ export default async function PayslipsPage({
   }
 
   const role = session.user.role || '';
+  if (role === 'hr_manager') {
+    redirect('/?error=unauthorized');
+  }
+
   const isEmployee = role === 'employee';
   const targetEmployeeId = searchParams?.employee_id || searchParams?.employeeId;
 

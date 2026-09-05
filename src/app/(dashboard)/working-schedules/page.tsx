@@ -7,6 +7,9 @@ import Link from 'next/link';
 import { Clock, Plus, ChevronRight } from 'lucide-react';
 import { cn, snakeToTitle } from '@/lib/utils';
 
+import { canManageEmployees } from '@/lib/rbac';
+import { redirect } from 'next/navigation';
+
 export const metadata: Metadata = { title: 'Working Schedules' };
 
 const DAY_ORDER = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -17,7 +20,10 @@ const DAY_ABBR: Record<string, string> = {
 
 export default async function WorkingSchedulesPage() {
   const session = await auth();
-  const canManage = ['admin', 'hr_manager', 'hr_payroll_manager'].includes(session?.user?.role ?? '');
+  if (session?.user?.role === 'employee') {
+    redirect('/?error=unauthorized');
+  }
+  const canManage = canManageEmployees(session?.user?.role ?? '');
 
   const schedules = await db.query.workingSchedules.findMany({
     where: eq(workingSchedules.companyId, session!.user.companyId),

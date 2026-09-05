@@ -7,11 +7,17 @@ import { eq } from 'drizzle-orm';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { PayrunDetailClient } from './payrun-detail-client';
+import { canAccessPayroll } from '@/lib/rbac';
+import { redirect } from 'next/navigation';
 
 export const metadata: Metadata = { title: 'Pay Run Details' };
 
 export default async function PayrunDetailPage({ params }: { params: { id: string } }) {
   const session = await auth();
+
+  if (!canAccessPayroll(session?.user?.role || '')) {
+    redirect('/?error=unauthorized');
+  }
 
   const payrun = await db.query.payruns.findFirst({
     where: eq(payruns.id, params.id),

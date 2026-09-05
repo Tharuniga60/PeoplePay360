@@ -372,10 +372,17 @@ async function seed() {
     },
     {
       companyId: company.id,
-      employeeId: john.id,
-      email: 'john@peoplepay360.com',
-      passwordHash: employeeHash,
-      role: 'employee',
+      employeeId: priya.id,
+      email: 'hrmanager@peoplepay360.com',
+      passwordHash: bcrypt.hashSync('hrmanager123', 12),
+      role: 'hr_manager',
+      isActive: true,
+    },
+    {
+      companyId: company.id,
+      email: 'payrolluser@peoplepay360.com',
+      passwordHash: bcrypt.hashSync('payrolluser123', 12),
+      role: 'hr_payroll_user',
       isActive: true,
     },
     {
@@ -385,15 +392,25 @@ async function seed() {
       role: 'hr_payroll_manager',
       isActive: true,
     },
+    {
+      companyId: company.id,
+      employeeId: john.id,
+      email: 'john@peoplepay360.com',
+      passwordHash: employeeHash,
+      role: 'employee',
+      isActive: true,
+    },
   ]);
-  console.log(`✅ Users: admin@peoplepay360.com, john@peoplepay360.com, payroll@peoplepay360.com`);
+  console.log(`✅ Users: 5 roles initialized (Admin, HR Manager, HR Payroll User, HR Payroll Manager, Employee)`);
 
   console.log('\n🎉 Seed complete!');
   console.log('─'.repeat(50));
   console.log('Login credentials:');
-  console.log('  Admin:   admin@peoplepay360.com   / admin123');
-  console.log('  Payroll: payroll@peoplepay360.com / payroll123');
-  console.log('  Employee: john@peoplepay360.com   / employee123');
+  console.log('  1. Employee:           john@peoplepay360.com        / employee123');
+  console.log('  2. HR Manager:         hrmanager@peoplepay360.com   / hrmanager123');
+  console.log('  3. HR Payroll User:    payrolluser@peoplepay360.com / payrolluser123');
+  console.log('  4. HR Payroll Manager: payroll@peoplepay360.com     / payroll123');
+  console.log('  5. Admin:              admin@peoplepay360.com       / admin123');
   console.log('─'.repeat(50));
 }
 
