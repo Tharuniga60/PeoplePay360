@@ -1,0 +1,167 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 14% 9%;
+    --foreground: 210 40% 95%;
+    --card: 220 14% 12%;
+    --card-foreground: 210 40% 95%;
+    --popover: 220 14% 12%;
+    --popover-foreground: 210 40% 95%;
+    --primary: 224 82% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 15%;
+    --secondary-foreground: 210 40% 95%;
+    --muted: 220 14% 20%;
+    --muted-foreground: 215 20% 55%;
+    --accent: 224 82% 58%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 14% 20%;
+    --input: 220 14% 15%;
+    --ring: 224 82% 58%;
+    --radius: 0.5rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply bg-[#111318] text-[#f1f5f9];
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-[#111318] text-[#f1f5f9] min-h-screen;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #111318;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #2a2d3e;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3b3f56;
+  }
+}
+
+@layer components {
+  /* ── Status Pill ───────────────────────────────────── */
+  .status-pill {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  /* ── Sidebar ───────────────────────────────────────── */
+  .sidebar-link {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-[#6b7280]
+           transition-all duration-150 cursor-pointer select-none;
+  }
+  .sidebar-link:hover {
+    @apply bg-[#1a1d26] text-[#e2e8f0];
+  }
+  .sidebar-link.active {
+    @apply bg-[#1e2235] text-white;
+  }
+
+  /* ── Table ─────────────────────────────────────────── */
+  .data-table {
+    @apply w-full text-sm;
+  }
+  .data-table thead tr {
+    @apply border-b border-[#2a2d3e];
+  }
+  .data-table thead th {
+    @apply px-4 py-3 text-left text-xs font-medium text-[#6b7280] uppercase tracking-wider;
+  }
+  .data-table tbody tr {
+    @apply border-b border-[#1e2235] transition-colors duration-100;
+  }
+  .data-table tbody tr:hover {
+    @apply bg-[#1a1d26];
+  }
+  .data-table tbody td {
+    @apply px-4 py-3.5 text-[#e2e8f0];
+  }
+
+  /* ── KPI Card ──────────────────────────────────────── */
+  .kpi-card {
+    @apply bg-[#1a1d26] rounded-xl p-5 border border-[#2a2d3e];
+  }
+
+  /* ── Section Card ──────────────────────────────────── */
+  .section-card {
+    @apply bg-[#1a1d26] rounded-xl border border-[#2a2d3e] overflow-hidden;
+  }
+
+  /* ── Input ─────────────────────────────────────────── */
+  .form-input {
+    @apply w-full bg-[#1a1d26] border border-[#2a2d3e] rounded-lg px-3 py-2.5 text-sm text-[#f1f5f9]
+           placeholder-[#4b5563] focus:outline-none focus:ring-2 focus:ring-[#3b6ef0]/50 focus:border-[#3b6ef0]
+           transition-colors duration-150;
+  }
+
+  /* ── Button variants ───────────────────────────────── */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
+           bg-[#3b6ef0] text-white hover:bg-[#2d5ce8] active:bg-[#2550d4]
+           transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
+           bg-[#1e2235] text-[#e2e8f0] border border-[#2a2d3e] hover:bg-[#252840]
+           transition-colors duration-150;
+  }
+  .btn-danger {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
+           bg-red-500/10 text-red-400 border border-red-800/40 hover:bg-red-500/20
+           transition-colors duration-150;
+  }
+
+  /* ── Badge ─────────────────────────────────────────── */
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium;
+  }
+  .badge-blue {
+    @apply bg-blue-500/10 text-blue-400 border border-blue-800/40;
+  }
+  .badge-green {
+    @apply bg-emerald-500/10 text-emerald-400 border border-emerald-800/40;
+  }
+  .badge-yellow {
+    @apply bg-yellow-500/10 text-yellow-400 border border-yellow-800/40;
+  }
+  .badge-red {
+    @apply bg-red-500/10 text-red-400 border border-red-800/40;
+  }
+  .badge-gray {
+    @apply bg-[#1e2235] text-[#6b7280] border border-[#2a2d3e];
+  }
+}
+
+@layer utilities {
+  .text-muted {
+    @apply text-[#6b7280];
+  }
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease-out forwards;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
