@@ -76,22 +76,30 @@ function LoginContent() {
             </div>
           )}
 
+          <div className="mb-4 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-300">
+            <div className="font-semibold text-white mb-1">📱 Employee Direct Login (200 Staff Active)</div>
+            <p className="text-[11px] text-blue-200/80 leading-relaxed">
+              • <strong>Login ID:</strong> Phone Number (e.g. <span className="font-mono text-white">9876500001</span> to <span className="font-mono text-white">9876500200</span>)<br />
+              • <strong>Password:</strong> First Name + Employee ID (e.g. <span className="font-mono text-white">JohnEMP001</span>, <span className="font-mono text-white">AaravEMP005</span>)
+            </p>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-[#e2e8f0] mb-1.5">
-                Email address
+                Phone Number or Email
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#4b5563]" />
                 <input
                   id="email"
-                  type="email"
+                  type="text"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@peoplepay360.com"
+                  placeholder="e.g. 9876500001 or admin@peoplepay360.com"
                   required
                   className="form-input pl-10"
-                  autoComplete="email"
+                  autoComplete="username"
                 />
               </div>
             </div>
@@ -107,7 +115,7 @@ function LoginContent() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="•••••••• (e.g. JohnEMP001)"
                   required
                   className="form-input pl-10"
                   autoComplete="current-password"
@@ -140,12 +148,13 @@ function LoginContent() {
             <div className="space-y-2 text-xs">
               {[
                 {
-                  role: 'Employee',
-                  tag: 'Self-Service',
+                  role: 'Employee (EMP001)',
+                  tag: 'Phone Login',
+                  loginId: '9876500001',
                   email: 'john@peoplepay360.com',
-                  pass: 'employee123',
+                  pass: 'JohnEMP001',
                   badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-                  desc: 'Own profile, attendance, leave requests. No payroll/admin access.',
+                  desc: 'Login ID: 9876500001 | Pass: JohnEMP001 (firstname + emp id)',
                 },
                 {
                   role: 'HR Manager',
@@ -184,13 +193,14 @@ function LoginContent() {
                   key={cred.email}
                   type="button"
                   onClick={async () => {
-                    setEmail(cred.email);
+                    const identifier = (cred as any).loginId ?? cred.email;
+                    setEmail(identifier);
                     setPassword(cred.pass);
                     setError('');
                     setLoading(true);
                     try {
                       const res = await signIn('credentials', {
-                        email: cred.email,
+                        email: identifier,
                         password: cred.pass,
                         redirect: false,
                       });
