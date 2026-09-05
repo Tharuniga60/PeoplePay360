@@ -239,7 +239,7 @@ function formatINR(amount: string | number): string {
 
 export function PayslipPDFDocument({ data }: { data: PayslipPDFData }) {
   const earnings = data.lines.filter((l) =>
-    ['BASIC', 'ALW', 'GROSS'].includes(l.category) && !l.calculationTrace.skipped
+    ['BASIC', 'ALW'].includes(l.category) && !l.calculationTrace.skipped
   );
   const deductions = data.lines.filter((l) =>
     l.category === 'DED' && !l.calculationTrace.skipped

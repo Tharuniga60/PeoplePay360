@@ -675,12 +675,18 @@ async function seed200() {
       const ded = parseFloat(slip.deductionsTotal?.toString() ?? '0');
       const net = parseFloat(slip.netTotal?.toString() ?? '0');
 
+      const hra = Math.round(basic * 0.4);
+      const transport = 3000;
+      const specialAlw = Math.max(0, gross - (basic + hra + transport));
+
       linesToInsert.push(
-        { payslipId: slip.id, sequence: 10, code: 'BASIC', name: 'Basic Salary', category: 'BASIC' as const, amount: basic.toString(), calculationTrace: { formula: 'wage * 0.5', value: basic } },
-        { payslipId: slip.id, sequence: 20, code: 'HRA', name: 'House Rent Allowance', category: 'ALW' as const, amount: (basic * 0.4).toString(), calculationTrace: { formula: 'BASIC * 0.4', value: basic * 0.4 } },
-        { payslipId: slip.id, sequence: 30, code: 'GROSS', name: 'Gross Salary', category: 'GROSS' as const, amount: gross.toString(), calculationTrace: { formula: 'BASIC + ALW', value: gross } },
-        { payslipId: slip.id, sequence: 40, code: 'PF_DED', name: 'Provident Fund', category: 'DED' as const, amount: ded.toString(), calculationTrace: { formula: 'min(BASIC * 0.12, 1800)', value: ded } },
-        { payslipId: slip.id, sequence: 50, code: 'NET', name: 'Net Pay', category: 'NET' as const, amount: net.toString(), calculationTrace: { formula: 'GROSS - DED', value: net } },
+        { payslipId: slip.id, sequence: 10, code: 'BASIC', name: 'Basic Salary', category: 'BASIC' as const, amount: basic.toString(), calculationTrace: { formula: 'contract.wage * 0.5', value: basic } },
+        { payslipId: slip.id, sequence: 20, code: 'HRA', name: 'House Rent Allowance', category: 'ALW' as const, amount: hra.toString(), calculationTrace: { formula: 'categories.BASIC * 0.4', value: hra } },
+        { payslipId: slip.id, sequence: 30, code: 'TRANSPORT', name: 'Transport Allowance', category: 'ALW' as const, amount: transport.toString(), calculationTrace: { formula: '3000', value: transport } },
+        { payslipId: slip.id, sequence: 40, code: 'SPECIAL_ALW', name: 'Special Allowance', category: 'ALW' as const, amount: specialAlw.toString(), calculationTrace: { formula: 'contract.wage - (categories.BASIC + categories.HRA + 3000)', value: specialAlw } },
+        { payslipId: slip.id, sequence: 50, code: 'GROSS', name: 'Gross Salary', category: 'GROSS' as const, amount: gross.toString(), calculationTrace: { formula: 'categories.BASIC + categories.ALW', value: gross } },
+        { payslipId: slip.id, sequence: 60, code: 'PF_DED', name: 'Provident Fund', category: 'DED' as const, amount: ded.toString(), calculationTrace: { formula: 'min(categories.BASIC * 0.12, 1800)', value: ded } },
+        { payslipId: slip.id, sequence: 70, code: 'NET', name: 'Net Pay', category: 'NET' as const, amount: net.toString(), calculationTrace: { formula: 'categories.GROSS - categories.DED', value: net } },
       );
     }
 

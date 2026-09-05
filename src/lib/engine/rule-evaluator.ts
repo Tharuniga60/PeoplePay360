@@ -71,31 +71,49 @@ function normalizeFormula(expression: string): string {
   let expr = expression.trim();
   // Handle "X% of Y" -> "(X / 100) * (Y)"
   expr = expr.replace(/(\d+(?:\.\d+)?)\s*%\s*(?:of)?\s*([a-zA-Z0-9_.]+)/gi, '($1 / 100) * ($2)');
+  // Handle "contract.wage" or "contract_wage" -> "wage"
+  expr = expr.replace(/contract\.wage/g, 'wage');
+  expr = expr.replace(/contract_wage/g, 'wage');
   // Handle "rule.CODE" -> "CODE"
   expr = expr.replace(/rule\.([a-zA-Z0-9_]+)/g, '$1');
+  // Handle "categories.CODE" -> "CODE"
+  expr = expr.replace(/categories\.([a-zA-Z0-9_]+)/g, '$1');
   return expr;
 }
 
-function flattenContext(ctx: EvaluationContext, computedRuleCodes: Record<string, number> = {}): Record<string, number> {
-  const vars: Record<string, number> = {
+function flattenContext(ctx: EvaluationContext, computedRuleCodes: Record<string, number> = {}): Record<string, any> {
+  const vars: Record<string, any> = {
     // Contract
+    wage: ctx.contract.wage,
     'contract.wage': ctx.contract.wage,
     'contract_wage': ctx.contract.wage,
-    wage: ctx.contract.wage,
-    // Time
+    contract: { wage: ctx.contract.wage },
+
+    // Time metrics
     worked_days: ctx.worked_days,
     planned_days: ctx.planned_days,
     worked_hours: ctx.worked_hours,
     planned_hours: ctx.planned_hours,
     overtime_hours: ctx.overtime_hours,
     loss_of_pay_days: ctx.loss_of_pay_days,
-    // Category totals
+
+    // Categories
+    categories: {
+      BASIC: ctx.categories.BASIC,
+      ALW: ctx.categories.ALW,
+      GROSS: ctx.categories.GROSS,
+      DED: ctx.categories.DED,
+      NET: ctx.categories.NET,
+      OTHER: ctx.categories.OTHER,
+      ...computedRuleCodes,
+    },
     'categories.BASIC': ctx.categories.BASIC,
     'categories.ALW': ctx.categories.ALW,
     'categories.GROSS': ctx.categories.GROSS,
     'categories.DED': ctx.categories.DED,
     'categories.NET': ctx.categories.NET,
     'categories.OTHER': ctx.categories.OTHER,
+
     // Flat aliases for convenience in formulas
     BASIC: ctx.categories.BASIC,
     ALW: ctx.categories.ALW,
@@ -107,24 +125,26 @@ function flattenContext(ctx: EvaluationContext, computedRuleCodes: Record<string
   for (const [code, val] of Object.entries(computedRuleCodes)) {
     vars[code] = val;
     vars[`rule.${code}`] = val;
+    vars[`categories.${code}`] = val;
   }
 
   return vars;
 }
 
-function safeEvaluate(expression: string, variables: Record<string, number>): number {
+function safeEvaluate(expression: string, variables: Record<string, any>): number {
   try {
     const normalized = normalizeFormula(expression);
     const expr = parser.parse(normalized);
     const result = expr.evaluate(variables);
     if (typeof result !== 'number' || !isFinite(result)) return 0;
     return Math.round(result * 100) / 100; // 2dp rounding
-  } catch {
+  } catch (err) {
+    console.error(`[RULE EVALUATION ERROR] Formula: "${expression}" -> Normalized: "${normalizeFormula(expression)}":`, err);
     return 0;
   }
 }
 
-function safeEvaluateBoolean(expression: string, variables: Record<string, number>): boolean {
+function safeEvaluateBoolean(expression: string, variables: Record<string, any>): boolean {
   if (!expression || expression.trim() === 'true') return true;
   try {
     const normalized = normalizeFormula(expression);
@@ -251,7 +271,7 @@ export function computeCategoryTotals(lines: EvaluatedLine[]) {
   const totals = { BASIC: 0, ALW: 0, GROSS: 0, DED: 0, NET: 0 };
 
   for (const line of lines) {
-    if (line.calculationTrace.skipped) continue;
+    if (line.calculationTrace?.skipped) continue;
     switch (line.category) {
       case 'BASIC': totals.BASIC += line.amount; break;
       case 'ALW': totals.ALW += line.amount; break;
@@ -261,5 +281,16 @@ export function computeCategoryTotals(lines: EvaluatedLine[]) {
     }
   }
 
+  // Fallback / sanity reconciliation:
+  // If GROSS was not defined by a rule, sum BASIC + ALW
+  if (totals.GROSS === 0 && (totals.BASIC > 0 || totals.ALW > 0)) {
+    totals.GROSS = totals.BASIC + totals.ALW;
+  }
+  // If NET was not defined by a rule, it is GROSS - DED
+  if (totals.NET === 0 && totals.GROSS > 0) {
+    totals.NET = Math.max(0, totals.GROSS - totals.DED);
+  }
+
   return totals;
 }
+

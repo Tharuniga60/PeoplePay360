@@ -271,7 +271,7 @@ export function PayslipViewerClient({ payslip }: PayslipViewerClientProps) {
               </p>
             </div>
 
-            <div className="p-3 bg-[#111319] border border-[#2a2d3e] rounded-lg text-xs space-y-1">
+            <div className="p-3 bg-[#111319] border border-[#2a2d3e] rounded-lg text-xs space-y-1.5">
               <div className="flex justify-between text-[#9ca3af]">
                 <span>Employee:</span>
                 <span className="text-white font-medium">{emp.firstName} {emp.lastName} ({emp.employeeCode})</span>
@@ -281,8 +281,16 @@ export function PayslipViewerClient({ payslip }: PayslipViewerClientProps) {
                 <span className="text-white font-medium">{payrun.name}</span>
               </div>
               <div className="flex justify-between text-[#9ca3af]">
-                <span>Net Pay:</span>
-                <span className="text-emerald-400 font-mono font-bold">{formatCurrency(parseFloat(payslip.netTotal ?? '0'))}</span>
+                <span>Gross Salary:</span>
+                <span className="text-white font-mono font-medium">{formatCurrency(parseFloat(payslip.grossTotal ?? '0'))}</span>
+              </div>
+              <div className="flex justify-between text-[#9ca3af]">
+                <span>Total Deductions:</span>
+                <span className="text-red-400 font-mono font-medium">({formatCurrency(parseFloat(payslip.deductionsTotal ?? '0'))})</span>
+              </div>
+              <div className="flex justify-between text-[#9ca3af] pt-1 border-t border-[#2a2d3e]">
+                <span className="font-semibold text-white">Net Take-Home:</span>
+                <span className="text-emerald-400 font-mono font-bold text-sm">{formatCurrency(parseFloat(payslip.netTotal ?? '0'))}</span>
               </div>
             </div>
 
