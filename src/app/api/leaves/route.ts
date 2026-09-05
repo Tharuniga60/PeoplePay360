@@ -37,7 +37,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Validation error', issues: parsed.error.issues }, { status: 400 });
   }
 
-  const [leave] = await db.insert(leaveRequests).values(parsed.data).returning();
+  const insertData = {
+    ...parsed.data,
+    numberOfDays: parsed.data.numberOfDays.toString(),
+  };
+
+  const [leave] = await db.insert(leaveRequests).values(insertData).returning();
 
   return NextResponse.json({ data: leave }, { status: 201 });
 }
