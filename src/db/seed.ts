@@ -10,8 +10,9 @@ import bcrypt from 'bcryptjs';
 import { addDays, format, subDays } from 'date-fns';
 
 // Load env
-import { config } from 'dotenv';
-config({ path: '.env.local' });
+import 'dotenv/config';
+import { configDotenv } from 'dotenv';
+configDotenv({ path: '.env.local' });
 
 const sql = neon(process.env.DATABASE_URL!);
 const db = drizzle(sql, { schema });
@@ -323,8 +324,8 @@ async function seed() {
         await db.insert(schema.attendances).values({
           employeeId: emp.id,
           attendanceDate: dateStr,
-          checkIn: isAbsent ? undefined : `${dateStr}T09:00:00`,
-          checkOut: isAbsent ? undefined : `${dateStr}T18:00:00`,
+          checkIn: isAbsent ? undefined : new Date(`${dateStr}T09:00:00.000Z`),
+          checkOut: isAbsent ? undefined : new Date(`${dateStr}T18:00:00.000Z`),
           workedHours: isAbsent ? '0' : '8',
           overtimeHours: '0',
           status: isAbsent ? 'absent' : 'present',
