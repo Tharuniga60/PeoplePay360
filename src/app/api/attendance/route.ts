@@ -45,7 +45,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Validation error', issues: errors }, { status: 400 });
   }
 
-  const values = parsed.map((p) => (p as { success: true; data: typeof p extends { success: true; data: infer D } ? D : never }).data);
+  const values = parsed.map((p) => {
+    const data = (p as { success: true; data: any }).data;
+    return {
+      ...data,
+      ...(data.workedHours !== undefined && { workedHours: data.workedHours.toString() }),
+      ...(data.overtimeHours !== undefined && { overtimeHours: data.overtimeHours.toString() }),
+    };
+  });
   const inserted = await db
     .insert(attendances)
     .values(values)
