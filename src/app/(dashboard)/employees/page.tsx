@@ -60,7 +60,6 @@ export default async function EmployeesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Employees</h1>
-          <p className="text-[#6b7280] text-sm mt-0.5">{empList.length} team members</p>
         </div>
         <Link href="/employees/new" className="btn-primary">
           <Plus className="w-4 h-4" />

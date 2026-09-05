@@ -30,15 +30,22 @@ export default async function DashboardPage() {
   const session = await auth();
   const stats = await getDashboardStats(session!.user.companyId);
 
+  const role = session?.user?.role || '';
+  const isEmployee = role === 'employee';
+
   const kpis = [
-    {
-      label: 'Total Employees',
-      value: stats.empCount,
-      icon: Users,
-      color: 'text-blue-400',
-      bg: 'bg-blue-500/10',
-      href: '/employees',
-    },
+    ...(!isEmployee
+      ? [
+          {
+            label: 'Total Employees',
+            value: stats.empCount,
+            icon: Users,
+            color: 'text-blue-400',
+            bg: 'bg-blue-500/10',
+            href: '/employees',
+          },
+        ]
+      : []),
     {
       label: 'Pending Leaves',
       value: stats.pendingLeaves,
@@ -76,7 +83,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className={cn('grid gap-4', isEmployee ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-4')}>
         {kpis.map((kpi) => (
           <Link key={kpi.label} href={kpi.href} className="kpi-card group hover:border-[#3b6ef0]/40 transition-colors duration-200">
             <div className="flex items-start justify-between">
