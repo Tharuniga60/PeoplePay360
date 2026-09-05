@@ -253,7 +253,7 @@ export function PayrunDetailClient({ payrun, userRole }: PayrunDetailClientProps
         isOpen={explainModal.open}
         onClose={() => setExplainModal({ open: false, employeeName: '', lines: [] })}
         employeeName={explainModal.employeeName}
-        lines={explainModal.lines as Parameters<typeof ExplainSalaryModal>[0]['lines']}
+        lines={explainModal.lines as unknown as Parameters<typeof ExplainSalaryModal>[0]['lines']}
       />
     </div>
   );
