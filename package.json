@@ -13,13 +13,13 @@
     "db:seed": "tsx src/db/seed.ts"
   },
   "dependencies": {
-    "next": "14.2.5",
+    "next": "14.2.35",
     "react": "^18",
     "react-dom": "^18",
     "next-auth": "^5.0.0-beta.19",
     "bcryptjs": "^2.4.3",
-    "@neondatabase/serverless": "^0.9.4",
-    "drizzle-orm": "^0.31.4",
+    "@neondatabase/serverless": "^1.1.0",
+    "drizzle-orm": "^0.45.2",
     "expr-eval": "^2.0.2",
     "@react-pdf/renderer": "^3.4.4",
     "lucide-react": "^0.400.0",
