@@ -48,10 +48,12 @@ export default async function LeavesPage() {
           <h1 className="text-2xl font-bold text-white tracking-tight">Leave Management</h1>
           <p className="text-[#6b7280] text-sm mt-0.5">{pending.length} pending approval</p>
         </div>
-        <Link href="/time-off/requests/new" className="btn-primary">
-          <Plus className="w-4 h-4" />
-          Request Leave
-        </Link>
+        {session?.user?.role !== 'admin' && (
+          <Link href="/time-off/requests/new" className="btn-primary">
+            <Plus className="w-4 h-4" />
+            Request Leave
+          </Link>
+        )}
       </div>
 
       {/* Pending Section */}

@@ -77,10 +77,12 @@ export default async function TimeOffRequestsPage({
               Clear Filter
             </Link>
           )}
-          <Link href="/time-off/requests/new" className="btn-primary">
-            <Plus className="w-4 h-4" />
-            Request Time Off
-          </Link>
+          {role !== 'admin' && (
+            <Link href="/time-off/requests/new" className="btn-primary">
+              <Plus className="w-4 h-4" />
+              Request Time Off
+            </Link>
+          )}
         </div>
       </div>
 
