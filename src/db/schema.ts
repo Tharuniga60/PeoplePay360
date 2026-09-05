@@ -149,7 +149,9 @@ export const branches = pgTable('branches', {
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+}, (table) => ({
+  idxBranchesCompany: index('idx_branches_company_id').on(table.companyId),
+}));
 
 // ─────────────────────────────────────────────
 // DEPARTMENTS
@@ -167,7 +169,9 @@ export const departments = pgTable('departments', {
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+}, (table) => ({
+  idxDepartmentsCompany: index('idx_departments_company_id').on(table.companyId),
+}));
 
 // ─────────────────────────────────────────────
 // JOB POSITIONS
@@ -185,7 +189,10 @@ export const jobPositions = pgTable('job_positions', {
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+}, (table) => ({
+  idxJobPositionsCompany: index('idx_job_positions_company_id').on(table.companyId),
+  idxJobPositionsDept: index('idx_job_positions_dept_id').on(table.departmentId),
+}));
 
 // ─────────────────────────────────────────────
 // WORKING SCHEDULES
@@ -215,7 +222,9 @@ export const scheduleLines = pgTable('schedule_lines', {
   breakDurationMinutes: integer('break_duration_minutes').notNull().default(60),
   isWorkingDay: boolean('is_working_day').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
-});
+}, (table) => ({
+  idxScheduleLinesSchedule: index('idx_schedule_lines_schedule_id').on(table.scheduleId),
+}));
 
 // ─────────────────────────────────────────────
 // HOLIDAY CALENDARS
@@ -271,6 +280,10 @@ export const employees = pgTable('employees', {
   idxEmployeesCompany: index('idx_employees_company_id').on(table.companyId),
   idxEmployeesCode: index('idx_employees_code').on(table.employeeCode),
   idxEmployeesDept: index('idx_employees_dept_id').on(table.departmentId),
+  idxEmployeesPhone: index('idx_employees_phone').on(table.phone),
+  idxEmployeesEmail: index('idx_employees_email').on(table.email),
+  idxEmployeesCompanyActive: index('idx_employees_company_active').on(table.companyId, table.isActive),
+  idxEmployeesCompanyName: index('idx_employees_company_name').on(table.companyId, table.firstName, table.lastName),
 }));
 
 // ─────────────────────────────────────────────
@@ -315,6 +328,8 @@ export const contracts = pgTable('contracts', {
   idxContractsEmpStatus: index('idx_contracts_emp_status').on(table.employeeId, table.status),
   idxContractsStructure: index('idx_contracts_structure_id').on(table.salaryStructureId),
   idxContractsDates: index('idx_contracts_dates').on(table.startDate, table.endDate),
+  idxContractsStatus: index('idx_contracts_status').on(table.status),
+  idxContractsStartDate: index('idx_contracts_start_date').on(table.startDate),
 }));
 
 // ─────────────────────────────────────────────
@@ -365,6 +380,8 @@ export const attendances = pgTable('attendances', {
   uniqEmployeeDate: unique().on(table.employeeId, table.attendanceDate),
   idxAttendancesEmpDate: index('idx_attendances_emp_date').on(table.employeeId, table.attendanceDate),
   idxAttendancesStatus: index('idx_attendances_status').on(table.status),
+  idxAttendancesDate: index('idx_attendances_date').on(table.attendanceDate),
+  idxAttendancesDateStatus: index('idx_attendances_date_status').on(table.attendanceDate, table.status),
 }));
 
 // ─────────────────────────────────────────────
@@ -415,6 +432,7 @@ export const leaveAllocations = pgTable('leave_allocations', {
 }, (table) => ({
   idxLeaveAllocEmpYear: index('idx_leave_alloc_emp_year').on(table.employeeId, table.year),
   idxLeaveAllocStatus: index('idx_leave_alloc_status').on(table.status),
+  idxLeaveAllocEmployee: index('idx_leave_alloc_employee_id').on(table.employeeId),
 }));
 
 // ─────────────────────────────────────────────
@@ -442,6 +460,10 @@ export const leaveRequests = pgTable('leave_requests', {
 }, (table) => ({
   idxLeaveRequestsEmpStatus: index('idx_leave_requests_emp_status').on(table.employeeId, table.status),
   idxLeaveRequestsDates: index('idx_leave_requests_dates').on(table.startDate, table.endDate),
+  idxLeaveRequestsStatus: index('idx_leave_requests_status').on(table.status),
+  idxLeaveRequestsStatusCreated: index('idx_leave_requests_status_created').on(table.status, table.createdAt),
+  idxLeaveRequestsCreatedAt: index('idx_leave_requests_created_at').on(table.createdAt),
+  idxLeaveRequestsEmpCreated: index('idx_leave_requests_emp_created').on(table.employeeId, table.createdAt),
 }));
 
 // ─────────────────────────────────────────────
@@ -475,6 +497,8 @@ export const payruns = pgTable('payruns', {
 }, (table) => ({
   idxPayrunsCompanyStatus: index('idx_payruns_company_status').on(table.companyId, table.status),
   idxPayrunsPeriod: index('idx_payruns_period').on(table.periodStart, table.periodEnd),
+  idxPayrunsCompanyCreated: index('idx_payruns_company_created').on(table.companyId, table.createdAt),
+  idxPayrunsStatus: index('idx_payruns_status').on(table.status),
 }));
 
 // ─────────────────────────────────────────────
@@ -512,6 +536,11 @@ export const payslips = pgTable('payslips', {
 }, (table) => ({
   idxPayslipsPayrunEmp: index('idx_payslips_payrun_emp').on(table.payrunId, table.employeeId),
   idxPayslipsStatus: index('idx_payslips_status').on(table.status),
+  idxPayslipsEmployee: index('idx_payslips_employee_id').on(table.employeeId),
+  idxPayslipsPayrun: index('idx_payslips_payrun_id').on(table.payrunId),
+  idxPayslipsCreatedAt: index('idx_payslips_created_at').on(table.createdAt),
+  idxPayslipsEmpCreated: index('idx_payslips_emp_created').on(table.employeeId, table.createdAt),
+  idxPayslipsStatusNet: index('idx_payslips_status_net').on(table.status, table.netTotal),
 }));
 
 // ─────────────────────────────────────────────
@@ -534,6 +563,7 @@ export const payslipLines = pgTable('payslip_lines', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 }, (table) => ({
   idxPayslipLinesCategory: index('idx_payslip_lines_category').on(table.payslipId, table.category),
+  idxPayslipLinesPayslipSeq: index('idx_payslip_lines_payslip_seq').on(table.payslipId, table.sequence),
 }));
 
 // ─────────────────────────────────────────────
@@ -555,7 +585,10 @@ export const payrunAnomalies = pgTable('payrun_anomalies', {
   resolvedById: uuid('resolved_by_id'),
   resolvedAt: timestamp('resolved_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
-});
+}, (table) => ({
+  idxPayrunAnomaliesPayrun: index('idx_payrun_anomalies_payrun_id').on(table.payrunId),
+  idxPayrunAnomaliesEmp: index('idx_payrun_anomalies_employee_id').on(table.employeeId),
+}));
 
 // ─────────────────────────────────────────────
 // PAYRUN WIZARD TRANSIENTS
@@ -592,6 +625,8 @@ export const users = pgTable('users', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (table) => ({
   idxUsersCompanyRole: index('idx_users_company_role').on(table.companyId, table.role),
+  idxUsersEmployee: index('idx_users_employee_id').on(table.employeeId),
+  idxUsersActive: index('idx_users_is_active').on(table.isActive),
 }));
 
 // ─────────────────────────────────────────────
@@ -611,7 +646,10 @@ export const auditLogs = pgTable('audit_logs', {
   ipAddress: varchar('ip_address', { length: 45 }),
   userAgent: text('user_agent'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
-});
+}, (table) => ({
+  idxAuditLogsCompanyCreated: index('idx_audit_logs_company_created').on(table.companyId, table.createdAt),
+  idxAuditLogsEntity: index('idx_audit_logs_entity').on(table.entityName, table.entityId),
+}));
 
 // ─────────────────────────────────────────────
 // EMAIL DISPATCHES

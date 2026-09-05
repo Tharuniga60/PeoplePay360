@@ -62,41 +62,37 @@ async function getEmployeeData(companyId: string, employeeId: string | null) {
 
   if (!emp) return null;
 
-  // Leave balance
-  const allocations = await db.query.leaveAllocations.findMany({
-    where: eq(leaveAllocations.employeeId, employeeId),
-  });
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+
+  // Parallel concurrent fetch for all dependent metrics
+  const [allocations, todayAtt, [pendingLeaves], recentAttendances, recentLeaves] = await Promise.all([
+    db.query.leaveAllocations.findMany({
+      where: eq(leaveAllocations.employeeId, employeeId),
+    }),
+    db.query.attendances.findFirst({
+      where: and(eq(attendances.employeeId, employeeId), eq(attendances.attendanceDate, todayStr)),
+    }),
+    db
+      .select({ count: count() })
+      .from(leaveRequests)
+      .where(and(eq(leaveRequests.employeeId, employeeId), eq(leaveRequests.status, 'pending'))),
+    db.query.attendances.findMany({
+      where: eq(attendances.employeeId, employeeId),
+      orderBy: [desc(attendances.attendanceDate)],
+      limit: 5,
+    }),
+    db.query.leaveRequests.findMany({
+      where: eq(leaveRequests.employeeId, employeeId),
+      orderBy: [desc(leaveRequests.createdAt)],
+      with: { leaveType: true },
+      limit: 5,
+    }),
+  ]);
+
   const totalBalance = allocations.reduce(
     (sum, a) => sum + (parseFloat(a.totalDays?.toString() ?? '0') - parseFloat(a.usedDays?.toString() ?? '0')),
     0
   );
-
-  // Today attendance
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
-  const todayAtt = await db.query.attendances.findFirst({
-    where: and(eq(attendances.employeeId, employeeId), eq(attendances.attendanceDate, todayStr)),
-  });
-
-  // Pending leave requests count
-  const [pendingLeaves] = await db
-    .select({ count: count() })
-    .from(leaveRequests)
-    .where(and(eq(leaveRequests.employeeId, employeeId), eq(leaveRequests.status, 'pending')));
-
-  // Recent attendance entries (last 5)
-  const recentAttendances = await db.query.attendances.findMany({
-    where: eq(attendances.employeeId, employeeId),
-    orderBy: [desc(attendances.attendanceDate)],
-    limit: 5,
-  });
-
-  // Recent leave requests (last 5)
-  const recentLeaves = await db.query.leaveRequests.findMany({
-    where: eq(leaveRequests.employeeId, employeeId),
-    orderBy: [desc(leaveRequests.createdAt)],
-    with: { leaveType: true },
-    limit: 5,
-  });
 
   return {
     employee: emp,
@@ -111,25 +107,33 @@ async function getEmployeeData(companyId: string, employeeId: string | null) {
 
 // ─── Data fetcher for HR Manager (No Payroll Data) ──────────────────────
 async function getHRManagerData(companyId: string) {
-  const [empCount] = await db.select({ count: count() }).from(employees).where(eq(employees.companyId, companyId));
-  const [pendingLeaves] = await db.select({ count: count() }).from(leaveRequests).where(eq(leaveRequests.status, 'pending'));
-  const [activeContracts] = await db.select({ count: count() }).from(contracts).where(eq(contracts.status, 'active'));
-
   const todayStr = format(new Date(), 'yyyy-MM-dd');
-  const [presentToday] = await db
-    .select({ count: count() })
-    .from(attendances)
-    .where(and(eq(attendances.attendanceDate, todayStr), eq(attendances.status, 'present')));
 
-  const pendingLeaveList = await db.query.leaveRequests.findMany({
-    where: eq(leaveRequests.status, 'pending'),
-    with: {
-      employee: true,
-      leaveType: true,
-    },
-    orderBy: [desc(leaveRequests.createdAt)],
-    limit: 5,
-  });
+  // Run all 5 HR metrics and lists concurrently in parallel
+  const [
+    [empCount],
+    [pendingLeaves],
+    [activeContracts],
+    [presentToday],
+    pendingLeaveList,
+  ] = await Promise.all([
+    db.select({ count: count() }).from(employees).where(eq(employees.companyId, companyId)),
+    db.select({ count: count() }).from(leaveRequests).where(eq(leaveRequests.status, 'pending')),
+    db.select({ count: count() }).from(contracts).where(eq(contracts.status, 'active')),
+    db
+      .select({ count: count() })
+      .from(attendances)
+      .where(and(eq(attendances.attendanceDate, todayStr), eq(attendances.status, 'present'))),
+    db.query.leaveRequests.findMany({
+      where: eq(leaveRequests.status, 'pending'),
+      with: {
+        employee: true,
+        leaveType: true,
+      },
+      orderBy: [desc(leaveRequests.createdAt)],
+      limit: 5,
+    }),
+  ]);
 
   return {
     empCount: empCount?.count ?? 0,
@@ -142,18 +146,26 @@ async function getHRManagerData(companyId: string) {
 
 // ─── Data fetcher for Payroll Manager & Admin ───────────────────────────
 async function getPayrollOperationsData(companyId: string) {
-  const [empCount] = await db.select({ count: count() }).from(employees).where(eq(employees.companyId, companyId));
-  const [pendingLeaves] = await db.select({ count: count() }).from(leaveRequests).where(eq(leaveRequests.status, 'pending'));
-  const recentPayruns = await db.query.payruns.findMany({
-    where: eq(payruns.companyId, companyId),
-    orderBy: [desc(payruns.createdAt)],
-    limit: 5,
-    with: { salaryStructure: true },
-  });
-  const [totalPaidOut] = await db
-    .select({ total: sql<string>`COALESCE(SUM(net_total::numeric), 0)` })
-    .from(payslips)
-    .where(eq(payslips.status, 'approved'));
+  // Run all 4 payroll metrics concurrently in parallel
+  const [
+    [empCount],
+    [pendingLeaves],
+    recentPayruns,
+    [totalPaidOut],
+  ] = await Promise.all([
+    db.select({ count: count() }).from(employees).where(eq(employees.companyId, companyId)),
+    db.select({ count: count() }).from(leaveRequests).where(eq(leaveRequests.status, 'pending')),
+    db.query.payruns.findMany({
+      where: eq(payruns.companyId, companyId),
+      orderBy: [desc(payruns.createdAt)],
+      limit: 5,
+      with: { salaryStructure: true },
+    }),
+    db
+      .select({ total: sql<string>`COALESCE(SUM(net_total::numeric), 0)` })
+      .from(payslips)
+      .where(eq(payslips.status, 'approved')),
+  ]);
 
   return {
     empCount: empCount?.count ?? 0,

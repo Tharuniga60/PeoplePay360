@@ -42,33 +42,34 @@ export default async function AttendancePage({
     ? session.user.employeeId
     : targetEmployeeId || undefined;
 
-  let records: AttendanceWithEmployee[];
-  if (filterEmployeeId) {
-    records = (await db.query.attendances.findMany({
-      where: eq(attendances.employeeId, filterEmployeeId),
-      with: { employee: true },
-      orderBy: [desc(attendances.attendanceDate)],
-      limit: 100,
-    })) as AttendanceWithEmployee[];
-  } else {
-    records = (await db.query.attendances.findMany({
-      with: { employee: true },
-      orderBy: [desc(attendances.attendanceDate)],
-      limit: 200,
-    })) as AttendanceWithEmployee[];
-  }
-
-  // Today's record for logged-in user
   const todayStr = format(new Date(), 'yyyy-MM-dd');
-  const todayRecord = session.user.employeeId
-    ? ((await db.query.attendances.findFirst({
+
+  const recordsPromise = filterEmployeeId
+    ? db.query.attendances.findMany({
+        where: eq(attendances.employeeId, filterEmployeeId),
+        with: { employee: true },
+        orderBy: [desc(attendances.attendanceDate)],
+        limit: 100,
+      })
+    : db.query.attendances.findMany({
+        with: { employee: true },
+        orderBy: [desc(attendances.attendanceDate)],
+        limit: 200,
+      });
+
+  const todayRecordPromise = session.user.employeeId
+    ? db.query.attendances.findFirst({
         where: and(
           eq(attendances.employeeId, session.user.employeeId),
           eq(attendances.attendanceDate, todayStr)
         ),
         with: { employee: true },
-      })) as AttendanceWithEmployee | null)
-    : null;
+      })
+    : Promise.resolve(null);
+
+  const [recordsRaw, todayRecordRaw] = await Promise.all([recordsPromise, todayRecordPromise]);
+  const records = recordsRaw as AttendanceWithEmployee[];
+  const todayRecord = todayRecordRaw as AttendanceWithEmployee | null;
 
   // Counts for summary strip
   const presentCount = records.filter((r) => r.status === 'present').length;
