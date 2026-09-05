@@ -6,34 +6,6 @@ import { users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
-declare module 'next-auth' {
-  interface Session {
-    user: {
-      id: string;
-      email: string;
-      role: string;
-      companyId: string;
-      employeeId: string | null;
-    };
-  }
-
-  interface User {
-    id: string;
-    email: string;
-    role: string;
-    companyId: string;
-    employeeId: string | null;
-  }
-}
-
-declare module 'next-auth/jwt' {
-  interface JWT {
-    id: string;
-    role: string;
-    companyId: string;
-    employeeId: string | null;
-  }
-}
 
 const loginSchema = z.object({
   email: z.string().email(),
