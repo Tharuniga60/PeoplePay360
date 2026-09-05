@@ -105,8 +105,8 @@ export function PayrunWizardStep1({ salaryStructures, onNext, companyId }: Wizar
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? 'Attendance sync failed');
       setSyncSuccessMessage(json.message ?? 'Attendance synchronized successfully.');
-      // Auto re-check eligibility with freshly synced data
-      await handleCheck(true);
+      // Auto re-check eligibility with freshly synced data without duplicate sync
+      await handleCheck(false);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Unknown sync error');
     } finally {

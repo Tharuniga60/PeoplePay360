@@ -11,7 +11,7 @@ import {
   salaryRules,
   scheduleLines,
 } from '@/db/schema';
-import { and, eq, gte, lte } from 'drizzle-orm';
+import { and, eq, gte, lte, inArray } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { canComputePayrun } from '@/lib/rbac';
 import { logAuditEvent } from '@/lib/audit';
@@ -64,11 +64,95 @@ export async function POST(
     },
   });
 
-  // Clear old lines and anomalies
-  for (const ps of payslipStubs) {
-    await db.delete(payslipLines).where(eq(payslipLines.payslipId, ps.id));
+  // Clear old lines and anomalies in batch
+  const stubIds = payslipStubs.map((ps) => ps.id);
+  if (stubIds.length > 0) {
+    await db.delete(payslipLines).where(inArray(payslipLines.payslipId, stubIds));
   }
   await db.delete(payrunAnomalies).where(eq(payrunAnomalies.payrunId, payrun.id));
+
+  // Prefetch all attendances for these employees in this period in a SINGLE query
+  const empIds = payslipStubs.map((s) => s.employee.id);
+  const allAttendances = empIds.length > 0
+    ? await db
+        .select()
+        .from(attendances)
+        .where(
+          and(
+            inArray(attendances.employeeId, empIds),
+            gte(attendances.attendanceDate, payrun.periodStart),
+            lte(attendances.attendanceDate, payrun.periodEnd)
+          )
+        )
+    : [];
+
+  const attendancesByEmp = new Map<string, typeof allAttendances>();
+  for (const att of allAttendances) {
+    let list = attendancesByEmp.get(att.employeeId);
+    if (!list) {
+      list = [];
+      attendancesByEmp.set(att.employeeId, list);
+    }
+    list.push(att);
+  }
+
+  // Check if any employees are completely missing attendance; if so, bulk sync in one call
+  const empsMissingAttendance = empIds.filter((id) => (attendancesByEmp.get(id)?.length ?? 0) === 0);
+  if (empsMissingAttendance.length > 0) {
+    try {
+      await syncScheduleAttendance({
+        companyId: payrun.companyId,
+        startDate: payrun.periodStart,
+        endDate: payrun.periodEnd,
+        employeeIds: empsMissingAttendance,
+      });
+      const newlySynced = await db
+        .select()
+        .from(attendances)
+        .where(
+          and(
+            inArray(attendances.employeeId, empsMissingAttendance),
+            gte(attendances.attendanceDate, payrun.periodStart),
+            lte(attendances.attendanceDate, payrun.periodEnd)
+          )
+        );
+      for (const att of newlySynced) {
+        let list = attendancesByEmp.get(att.employeeId);
+        if (!list) {
+          list = [];
+          attendancesByEmp.set(att.employeeId, list);
+        }
+        list.push(att);
+      }
+    } catch {
+      // Continue with available records
+    }
+  }
+
+  // Prefetch all approved leaves for these employees in this period in a SINGLE query
+  const allLeaves = empIds.length > 0
+    ? await db
+        .select()
+        .from(leaveRequests)
+        .where(
+          and(
+            inArray(leaveRequests.employeeId, empIds),
+            eq(leaveRequests.status, 'approved'),
+            gte(leaveRequests.startDate, payrun.periodStart),
+            lte(leaveRequests.endDate, payrun.periodEnd)
+          )
+        )
+    : [];
+
+  const leavesByEmp = new Map<string, typeof allLeaves>();
+  for (const l of allLeaves) {
+    let list = leavesByEmp.get(l.employeeId);
+    if (!list) {
+      list = [];
+      leavesByEmp.set(l.employeeId, list);
+    }
+    list.push(l);
+  }
 
   const anomalyInputs: Parameters<typeof detectAnomalies>[0] = [];
 
@@ -90,54 +174,9 @@ export async function POST(
     const resolvedScheduleLines =
       (activeContract.schedule?.scheduleLines ?? emp.defaultSchedule?.scheduleLines ?? []) as typeof scheduleLines.$inferSelect[];
 
-    // Fetch attendance for the period
-    let empAttendances = await db
-      .select()
-      .from(attendances)
-      .where(
-        and(
-          eq(attendances.employeeId, emp.id),
-          gte(attendances.attendanceDate, payrun.periodStart),
-          lte(attendances.attendanceDate, payrun.periodEnd)
-        )
-      );
-
-    // If no attendance records exist for this period, auto-sync from schedule
-    if (empAttendances.length === 0) {
-      try {
-        await syncScheduleAttendance({
-          companyId: payrun.companyId,
-          startDate: payrun.periodStart,
-          endDate: payrun.periodEnd,
-          employeeIds: [emp.id],
-        });
-        empAttendances = await db
-          .select()
-          .from(attendances)
-          .where(
-            and(
-              eq(attendances.employeeId, emp.id),
-              gte(attendances.attendanceDate, payrun.periodStart),
-              lte(attendances.attendanceDate, payrun.periodEnd)
-            )
-          );
-      } catch {
-        // Continue with available records
-      }
-    }
-
-    // Fetch approved leaves for the period
-    const empLeaves = await db
-      .select()
-      .from(leaveRequests)
-      .where(
-        and(
-          eq(leaveRequests.employeeId, emp.id),
-          eq(leaveRequests.status, 'approved'),
-          gte(leaveRequests.startDate, payrun.periodStart),
-          lte(leaveRequests.endDate, payrun.periodEnd)
-        )
-      );
+    // Retrieve attendance & approved leaves from in-memory maps
+    const empAttendances = attendancesByEmp.get(emp.id) || [];
+    const empLeaves = leavesByEmp.get(emp.id) || [];
 
     // Calculate time metrics
     const metrics = resolvedScheduleLines.length > 0

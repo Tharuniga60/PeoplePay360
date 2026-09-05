@@ -6,7 +6,7 @@ import {
   attendances,
   salaryRules,
 } from '@/db/schema';
-import { and, eq, gte, lte } from 'drizzle-orm';
+import { and, eq, gte, lte, inArray } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { wizardStep1Schema } from '@/lib/validations';
 import { parseISO } from 'date-fns';
@@ -80,12 +80,44 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  const matchingContracts = activeContracts.filter((c) => c.employee.companyId === companyId);
+  const targetEmpIds = matchingContracts.map((c) => c.employee.id);
+
+  // Batch query all attendances for these employees in this period in ONE single query!
+  const allAttendances = targetEmpIds.length > 0
+    ? await db
+        .select({
+          id: attendances.id,
+          employeeId: attendances.employeeId,
+          status: attendances.status,
+          checkIn: attendances.checkIn,
+          checkOut: attendances.checkOut,
+          workedHours: attendances.workedHours,
+        })
+        .from(attendances)
+        .where(
+          and(
+            inArray(attendances.employeeId, targetEmpIds),
+            gte(attendances.attendanceDate, periodStart),
+            lte(attendances.attendanceDate, periodEnd)
+          )
+        )
+    : [];
+
+  const attendancesByEmp = new Map<string, typeof allAttendances>();
+  for (const att of allAttendances) {
+    let list = attendancesByEmp.get(att.employeeId);
+    if (!list) {
+      list = [];
+      attendancesByEmp.set(att.employeeId, list);
+    }
+    list.push(att);
+  }
+
   const candidates: WizardCandidate[] = [];
 
-  for (const contract of activeContracts) {
+  for (const contract of matchingContracts) {
     const emp = contract.employee;
-    if (emp.companyId !== companyId) continue;
-
     const warnings: CandidateWarning[] = [];
 
     // Check: employee still active
@@ -104,23 +136,8 @@ export async function POST(req: NextRequest) {
       warnings.push({ code: 'NO_SCHEDULE', message: 'No working schedule assigned to employee or contract.', severity: 'warning' });
     }
 
-    // Check: attendance coverage for the period
-    const empAttendances = await db
-      .select({
-        id: attendances.id,
-        status: attendances.status,
-        checkIn: attendances.checkIn,
-        checkOut: attendances.checkOut,
-        workedHours: attendances.workedHours,
-      })
-      .from(attendances)
-      .where(
-        and(
-          eq(attendances.employeeId, emp.id),
-          gte(attendances.attendanceDate, periodStart),
-          lte(attendances.attendanceDate, periodEnd)
-        )
-      );
+    // Check: attendance coverage for the period from in-memory Map
+    const empAttendances = attendancesByEmp.get(emp.id) || [];
 
     if (empAttendances.length === 0) {
       warnings.push({

@@ -160,7 +160,7 @@ export function NewContractClient({
             End Date (Optional)
           </label>
           <input type="date" name="endDate" className="form-input" />
-          <p className="text-[11px] text-[#4b5563] mt-1">Leave empty for permanent positions.</p>
+          <p className="text-[11px] text-[#4b5563] mt-1">Leave empty for ongoing contracts.</p>
         </div>
       </div>
 
@@ -199,10 +199,10 @@ export function NewContractClient({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-semibold text-[#6b7280] uppercase tracking-wider mb-1.5">
-            Base Wage (Monthly) *
+            Base Salary (Monthly) *
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6b7280] font-mono text-sm">$</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6b7280] font-mono text-sm">₹</span>
             <input
               type="number"
               name="wage"
@@ -221,7 +221,6 @@ export function NewContractClient({
           </label>
           <select name="status" defaultValue="active" className="form-input">
             <option value="active">Active (Running)</option>
-            <option value="draft">Draft</option>
             <option value="expired">Expired</option>
           </select>
         </div>

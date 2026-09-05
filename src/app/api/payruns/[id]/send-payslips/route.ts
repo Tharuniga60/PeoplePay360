@@ -72,84 +72,95 @@ export async function POST(
   let failedCount = 0;
   let skippedCount = 0;
 
-  for (const ps of payrun.payslips) {
-    // If retrying only failed, skip already successfully delivered/simulated slips
+  // Filter candidate payslips
+  const candidatePayslips = payrun.payslips.filter((ps) => {
     if (retryFailedOnly && successfulSlipIds.has(ps.id)) {
       skippedCount++;
-      continue;
+      return false;
     }
+    return true;
+  });
 
-    const email = ps.employee?.email;
-    const name = `${ps.employee?.firstName} ${ps.employee?.lastName}`;
+  // Process in concurrent batches of 5 to avoid Vercel serverless timeouts
+  const CONCURRENCY = 5;
+  for (let i = 0; i < candidatePayslips.length; i += CONCURRENCY) {
+    const batch = candidatePayslips.slice(i, i + CONCURRENCY);
 
-    if (!email) {
-      failedCount++;
-      await db.insert(emailDispatches).values({
-        companyId: session.user.companyId,
-        payrunId: payrun.id,
-        payslipId: ps.id,
-        recipientEmail: 'none',
-        recipientName: name,
-        status: 'failed',
-        errorMessage: 'Employee record has no work email address configured',
-      });
-      continue;
-    }
+    await Promise.all(
+      batch.map(async (ps) => {
+        const email = ps.employee?.email;
+        const name = `${ps.employee?.firstName} ${ps.employee?.lastName}`;
 
-    const grossNum = parseFloat(ps.grossTotal?.toString() || '0');
-    const netNum = parseFloat(ps.netTotal?.toString() || '0');
+        if (!email) {
+          failedCount++;
+          await db.insert(emailDispatches).values({
+            companyId: session.user.companyId,
+            payrunId: payrun.id,
+            payslipId: ps.id,
+            recipientEmail: 'none',
+            recipientName: name,
+            status: 'failed',
+            errorMessage: 'Employee record has no work email address configured',
+          });
+          return;
+        }
 
-    try {
-      const result = await sendPayslipEmail({
-        toEmail: email,
-        employeeName: name,
-        period: periodString,
-        payrunName: payrun.name,
-        gross: grossNum,
-        net: netNum,
-      });
+        const grossNum = parseFloat(ps.grossTotal?.toString() || '0');
+        const netNum = parseFloat(ps.netTotal?.toString() || '0');
 
-      if (result.success) {
-        const dispatchStatus = result.simulated ? 'simulated' : 'sent';
-        if (result.simulated) simulatedCount++;
-        else sentCount++;
+        try {
+          const result = await sendPayslipEmail({
+            toEmail: email,
+            employeeName: name,
+            period: periodString,
+            payrunName: payrun.name,
+            gross: grossNum,
+            net: netNum,
+          });
 
-        await db.insert(emailDispatches).values({
-          companyId: session.user.companyId,
-          payrunId: payrun.id,
-          payslipId: ps.id,
-          recipientEmail: email,
-          recipientName: name,
-          status: dispatchStatus,
-          providerMessageId: (result as any).messageId ?? null,
-          lastAttemptAt: new Date(),
-        });
-      } else {
-        failedCount++;
-        await db.insert(emailDispatches).values({
-          companyId: session.user.companyId,
-          payrunId: payrun.id,
-          payslipId: ps.id,
-          recipientEmail: email,
-          recipientName: name,
-          status: 'failed',
-          errorMessage: result.error ?? 'Email delivery failed',
-          lastAttemptAt: new Date(),
-        });
-      }
-    } catch (err: any) {
-      failedCount++;
-      await db.insert(emailDispatches).values({
-        companyId: session.user.companyId,
-        payrunId: payrun.id,
-        payslipId: ps.id,
-        recipientEmail: email,
-        recipientName: name,
-        status: 'failed',
-        errorMessage: err.message ?? 'Unexpected error during payslip dispatch',
-        lastAttemptAt: new Date(),
-      });
-    }
+          if (result.success) {
+            const dispatchStatus = result.simulated ? 'simulated' : 'sent';
+            if (result.simulated) simulatedCount++;
+            else sentCount++;
+
+            await db.insert(emailDispatches).values({
+              companyId: session.user.companyId,
+              payrunId: payrun.id,
+              payslipId: ps.id,
+              recipientEmail: email,
+              recipientName: name,
+              status: dispatchStatus,
+              providerMessageId: (result as any).messageId ?? null,
+              lastAttemptAt: new Date(),
+            });
+          } else {
+            failedCount++;
+            await db.insert(emailDispatches).values({
+              companyId: session.user.companyId,
+              payrunId: payrun.id,
+              payslipId: ps.id,
+              recipientEmail: email,
+              recipientName: name,
+              status: 'failed',
+              errorMessage: result.error ?? 'Email delivery failed',
+              lastAttemptAt: new Date(),
+            });
+          }
+        } catch (err: any) {
+          failedCount++;
+          await db.insert(emailDispatches).values({
+            companyId: session.user.companyId,
+            payrunId: payrun.id,
+            payslipId: ps.id,
+            recipientEmail: email,
+            recipientName: name,
+            status: 'failed',
+            errorMessage: err.message ?? 'Unexpected error during payslip dispatch',
+            lastAttemptAt: new Date(),
+          });
+        }
+      })
+    );
   }
 
   await recordAuditEvent({

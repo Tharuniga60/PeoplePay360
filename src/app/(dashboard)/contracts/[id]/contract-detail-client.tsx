@@ -136,7 +136,6 @@ export function ContractDetailClient({
   }
 
   const steps = [
-    { key: 'draft', label: 'Draft' },
     { key: 'active', label: 'Running' },
     { key: 'expired', label: 'Expired' },
     { key: 'cancelled', label: 'Cancelled' },
@@ -169,29 +168,6 @@ export function ContractDetailClient({
         {/* Workflow Action Buttons */}
         {canEdit && (
           <div className="flex items-center gap-2">
-            {contract.status === 'draft' && (
-              <>
-                <button
-                  type="button"
-                  disabled={loading}
-                  onClick={() => handleStatusTransition('active')}
-                  className="btn-primary inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
-                >
-                  <Play className="w-4 h-4" />
-                  Set to Running
-                </button>
-                <button
-                  type="button"
-                  disabled={loading}
-                  onClick={() => handleStatusTransition('cancelled')}
-                  className="btn-secondary text-red-400 hover:text-red-300 inline-flex items-center gap-1.5"
-                >
-                  <Ban className="w-4 h-4" />
-                  Cancel
-                </button>
-              </>
-            )}
-
             {contract.status === 'active' && (
               <>
                 <button
@@ -219,11 +195,11 @@ export function ContractDetailClient({
               <button
                 type="button"
                 disabled={loading}
-                onClick={() => handleStatusTransition('draft')}
-                className="btn-secondary inline-flex items-center gap-1.5 text-blue-400"
+                onClick={() => handleStatusTransition('active')}
+                className="btn-secondary inline-flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300"
               >
-                <RotateCcw className="w-4 h-4" />
-                Reset to Draft
+                <Play className="w-4 h-4" />
+                Reactivate Contract
               </button>
             )}
 
@@ -314,7 +290,7 @@ export function ContractDetailClient({
               </div>
 
               <div>
-                <label className="form-label">Base Wage (Monthly Salary)</label>
+                <label className="form-label">Base Salary (Monthly)</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#6b7280]">₹</span>
                   <input
@@ -342,7 +318,7 @@ export function ContractDetailClient({
               </div>
 
               <div>
-                <label className="form-label">End Date (Optional for Permanent)</label>
+                <label className="form-label">End Date (Optional for Ongoing)</label>
                 <input
                   type="date"
                   disabled={!canEdit}
@@ -465,7 +441,7 @@ export function ContractDetailClient({
 
             <div className="space-y-2 text-xs">
               <div className="flex justify-between py-1 border-b border-[#1e2235]">
-                <span className="text-[#6b7280]">Base Wage</span>
+                <span className="text-[#6b7280]">Base Salary</span>
                 <span className="font-mono font-bold text-white">
                   {formatCurrency(parseFloat(contract.wage))}
                 </span>

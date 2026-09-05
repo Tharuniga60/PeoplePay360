@@ -7,7 +7,7 @@ import {
   scheduleLines,
   leaveRequests,
 } from '@/db/schema';
-import { and, eq, gte, lte } from 'drizzle-orm';
+import { and, eq, gte, lte, inArray } from 'drizzle-orm';
 import { eachDayOfInterval, format, parseISO, getDay } from 'date-fns';
 
 const DAY_MAP: Record<number, string> = {
@@ -31,6 +31,7 @@ export interface SyncScheduleAttendanceOptions {
  * Synchronizes attendance records based on employee working schedules (or Mon-Fri 8h default)
  * and approved leave requests for a given date range.
  * Preserves existing attendance entries via ON CONFLICT DO NOTHING.
+ * Optimized with pre-fetched leave data and bulk multi-row insert batching.
  */
 export async function syncScheduleAttendance({
   companyId,
@@ -45,7 +46,7 @@ export async function syncScheduleAttendance({
     throw new Error('endDate must be after startDate');
   }
 
-  // Fetch employees with their contract schedules and default schedules
+  // 1. Fetch employees with their contract schedules and default schedules (Single query)
   const empList = await db.query.employees.findMany({
     where: eq(employees.companyId, companyId),
     with: {
@@ -62,8 +63,40 @@ export async function syncScheduleAttendance({
     ? empList.filter((e) => employeeIds.includes(e.id))
     : empList;
 
+  if (targetEmployees.length === 0) {
+    return { generatedCount: 0, employeesProcessed: 0 };
+  }
+
+  const targetEmpIds = targetEmployees.map((e) => e.id);
+
+  // 2. Fetch ALL approved leaves for all target employees in a SINGLE query!
+  const approvedLeaves = await db.query.leaveRequests.findMany({
+    where: and(
+      inArray(leaveRequests.employeeId, targetEmpIds),
+      eq(leaveRequests.status, 'approved'),
+      lte(leaveRequests.startDate, endDate),
+      gte(leaveRequests.endDate, startDate)
+    ),
+  });
+
+  // Map employeeId -> Set of leave date strings (YYYY-MM-DD)
+  const leavesByEmp = new Map<string, Set<string>>();
+  for (const req of approvedLeaves) {
+    let leaveDates = leavesByEmp.get(req.employeeId);
+    if (!leaveDates) {
+      leaveDates = new Set<string>();
+      leavesByEmp.set(req.employeeId, leaveDates);
+    }
+    const lStart = parseISO(req.startDate);
+    const lEnd = parseISO(req.endDate);
+    const lDays = eachDayOfInterval({ start: lStart, end: lEnd });
+    for (const d of lDays) {
+      leaveDates.add(format(d, 'yyyy-MM-dd'));
+    }
+  }
+
   const days = eachDayOfInterval({ start, end });
-  let generatedCount = 0;
+  const recordsToInsert: Array<typeof attendances.$inferInsert> = [];
 
   for (const emp of targetEmployees) {
     const activeContract = emp.contracts[0];
@@ -74,25 +107,7 @@ export async function syncScheduleAttendance({
       scheduleMap.set(l.dayOfWeek, l);
     }
 
-    // Fetch approved leaves in this period
-    const approvedLeaves = await db.query.leaveRequests.findMany({
-      where: and(
-        eq(leaveRequests.employeeId, emp.id),
-        eq(leaveRequests.status, 'approved'),
-        gte(leaveRequests.startDate, startDate),
-        lte(leaveRequests.endDate, endDate)
-      ),
-    });
-
-    const leaveDates = new Set<string>();
-    for (const req of approvedLeaves) {
-      const lStart = parseISO(req.startDate);
-      const lEnd = parseISO(req.endDate);
-      const lDays = eachDayOfInterval({ start: lStart, end: lEnd });
-      for (const d of lDays) {
-        leaveDates.add(format(d, 'yyyy-MM-dd'));
-      }
-    }
+    const empLeaveDates = leavesByEmp.get(emp.id);
 
     for (const day of days) {
       const dayName = DAY_MAP[getDay(day)];
@@ -103,12 +118,12 @@ export async function syncScheduleAttendance({
       if (!isWorking) continue;
 
       const dateStr = format(day, 'yyyy-MM-dd');
-      const isOnLeave = leaveDates.has(dateStr);
+      const isOnLeave = empLeaveDates ? empLeaveDates.has(dateStr) : false;
 
       const workFrom = line?.workFrom ? line.workFrom.substring(0, 5) : '09:00';
       const workTo = line?.workTo ? line.workTo.substring(0, 5) : '18:00';
 
-      const insertValues = {
+      recordsToInsert.push({
         employeeId: emp.id,
         attendanceDate: dateStr,
         status: (isOnLeave ? 'on_leave' : 'present') as 'present' | 'absent' | 'half_day' | 'on_leave' | 'holiday' | 'weekend',
@@ -117,17 +132,25 @@ export async function syncScheduleAttendance({
         workedHours: isOnLeave ? '0' : '8',
         overtimeHours: '0',
         notes: isOnLeave ? 'Approved Leave' : 'Auto-synced from working schedule',
-      };
+      });
+    }
+  }
 
-      try {
-        await db
-          .insert(attendances)
-          .values(insertValues)
-          .onConflictDoNothing({ target: [attendances.employeeId, attendances.attendanceDate] });
-        generatedCount++;
-      } catch {
-        // ignore duplicate / conflict
-      }
+  // 3. Batch insert in chunks of 250 with ON CONFLICT DO NOTHING
+  let generatedCount = 0;
+  const BATCH_SIZE = 250;
+
+  for (let i = 0; i < recordsToInsert.length; i += BATCH_SIZE) {
+    const batch = recordsToInsert.slice(i, i + BATCH_SIZE);
+    try {
+      const inserted = await db
+        .insert(attendances)
+        .values(batch)
+        .onConflictDoNothing({ target: [attendances.employeeId, attendances.attendanceDate] })
+        .returning({ id: attendances.id });
+      generatedCount += inserted.length;
+    } catch (e) {
+      console.error('Batch insert attendance error:', e);
     }
   }
 

@@ -53,7 +53,7 @@ export const createContractSchema = z.object({
   startDate: z.string().min(1),
   endDate: z.string().optional(),
   wage: z.number().positive(),
-  status: z.enum(['draft', 'active', 'expired', 'cancelled']).default('draft'),
+  status: z.enum(['draft', 'active', 'expired', 'cancelled']).default('active'),
   notes: z.string().optional(),
 });
 

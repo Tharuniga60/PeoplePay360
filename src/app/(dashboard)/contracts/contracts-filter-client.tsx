@@ -71,7 +71,7 @@ export function ContractsFilterClient({
       <div className="p-4 border-b border-[#2a2d3e] flex items-center justify-between gap-4 flex-wrap">
         {/* Status Pills */}
         <div className="flex items-center gap-1.5 bg-[#111318] p-1 rounded-xl border border-[#2a2d3e]">
-          {['all', 'active', 'draft', 'expired'].map((s) => (
+          {['all', 'active', 'expired'].map((s) => (
             <button
               key={s}
               onClick={() => handleStatusChange(s)}
@@ -123,7 +123,7 @@ export function ContractsFilterClient({
               <th>Employee</th>
               <th>Contract Name</th>
               <th>Salary Structure</th>
-              <th>Wage</th>
+              <th>Salary</th>
               <th>Period</th>
               <th>Status</th>
               <th />
@@ -147,7 +147,7 @@ export function ContractsFilterClient({
                   {formatCurrency(parseFloat(contract.wage))}
                 </td>
                 <td className="text-xs text-[#6b7280]">
-                  {formatDate(contract.startDate)} → {contract.endDate ? formatDate(contract.endDate) : 'Permanent'}
+                  {formatDate(contract.startDate)} → {contract.endDate ? formatDate(contract.endDate) : 'Ongoing'}
                 </td>
                 <td>
                   <span className={cn('status-pill', CONTRACT_STATUS_COLORS[contract.status])}>

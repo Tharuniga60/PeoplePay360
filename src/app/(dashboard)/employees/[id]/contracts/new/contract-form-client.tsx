@@ -35,7 +35,7 @@ export function ContractFormClient({ employeeId, salaryStructures, workingSchedu
       startDate: formData.get('startDate'),
       endDate: endDate || undefined,
       wage: parseFloat(formData.get('wage') as string),
-      status: formData.get('status') || 'draft',
+      status: formData.get('status') || 'active',
       notes: formData.get('notes') || undefined,
     };
 
@@ -111,7 +111,7 @@ export function ContractFormClient({ employeeId, salaryStructures, workingSchedu
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className={labelClass}>Monthly Wage (₹) *</label>
+            <label className={labelClass}>Monthly Salary (₹) *</label>
             <input type="number" name="wage" required min="0" step="100" className={inputClass} placeholder="50000" />
           </div>
           <div>
@@ -119,15 +119,15 @@ export function ContractFormClient({ employeeId, salaryStructures, workingSchedu
             <input type="date" name="startDate" required className={inputClass} />
           </div>
           <div>
-            <label className={labelClass}>End Date (leave blank for open-ended)</label>
+            <label className={labelClass}>End Date (leave blank for ongoing)</label>
             <input type="date" name="endDate" className={inputClass} />
           </div>
         </div>
         <div>
           <label className={labelClass}>Status</label>
-          <select name="status" className={inputClass}>
-            <option value="draft">Draft</option>
+          <select name="status" defaultValue="active" className={inputClass}>
             <option value="active">Active</option>
+            <option value="expired">Expired</option>
           </select>
         </div>
       </div>

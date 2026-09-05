@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import {
   UserPlus,
@@ -57,9 +58,14 @@ const ROLE_BADGES: Record<string, { label: string; color: string; bg: string }> 
 
 export function UsersClient({ initialUsers, employees }: UsersClientProps) {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [usersList, setUsersList] = useState<UserRow[]>(initialUsers);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Drawer state
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -280,165 +286,175 @@ export function UsersClient({ initialUsers, employees }: UsersClientProps) {
         </table>
       </div>
 
-      {/* User Drawer / Modal */}
-      {isDrawerOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex justify-end animate-fade-in">
-          <div className="w-full max-w-md bg-[#13151f] border-l border-[#2a2d3e] h-full overflow-y-auto p-6 flex flex-col justify-between shadow-2xl">
-            <div>
-              <div className="flex items-center justify-between pb-4 border-b border-[#2a2d3e] mb-6">
-                <div>
-                  <h3 className="font-semibold text-white text-base">
-                    {editingUser ? 'Edit User Credentials & Role' : 'Create System User'}
-                  </h3>
-                  <p className="text-xs text-[#9ca3af] mt-0.5">
-                    Assign role-based permissions and link to employee master record.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsDrawerOpen(false)}
-                  className="text-[#9ca3af] hover:text-white"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {error && (
-                <div className="mb-5 p-3 bg-red-500/10 border border-red-800/40 rounded-lg text-xs text-red-400">
-                  {error}
-                </div>
-              )}
-
-              <form id="user-drawer-form" onSubmit={handleSubmit} className="space-y-4 text-xs">
-                {/* Linked Employee */}
-                <div>
-                  <label className="block font-medium text-[#cbd5e1] mb-1.5">
-                    Linked Employee (Optional)
-                  </label>
-                  <select
-                    value={selectedEmpId}
-                    onChange={(e) => handleSelectEmployee(e.target.value)}
-                    className="form-input text-xs"
+      {/* User Modal */}
+      {mounted && isDrawerOpen
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) setIsDrawerOpen(false);
+              }}
+            >
+              <div className="w-full max-w-lg bg-[#13151f] border border-[#2a2d3e] rounded-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in">
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-3.5 border-b border-[#2a2d3e]">
+                  <div>
+                    <h3 className="font-semibold text-white text-base">
+                      {editingUser ? 'Edit User Credentials & Role' : 'Create System User'}
+                    </h3>
+                    <p className="text-xs text-[#9ca3af] mt-0.5">
+                      Assign role-based permissions and link to employee master record.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsDrawerOpen(false)}
+                    className="p-1.5 rounded-lg text-[#9ca3af] hover:text-white hover:bg-[#1e2235] transition-colors"
                   >
-                    <option value="">No linked employee (System Only)</option>
-                    {employees.map((emp) => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.name} ({emp.code})
-                      </option>
-                    ))}
-                  </select>
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
 
-                {/* Work Email */}
-                <div>
-                  <label className="block font-medium text-[#cbd5e1] mb-1.5">
-                    Work Email (Login Username) *
-                  </label>
-                  <div className="relative">
-                    <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6b7280]" />
-                    <input
-                      type="email"
-                      required
-                      disabled={Boolean(editingUser)}
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="user@company.com"
-                      className="form-input pl-9 text-xs"
-                    />
-                  </div>
-                </div>
+                {/* Scrollable Form Body */}
+                <div className="overflow-y-auto px-6 py-4">
+                  {error && (
+                    <div className="mb-3 p-2.5 bg-red-500/10 border border-red-800/40 rounded-lg text-xs text-red-400">
+                      {error}
+                    </div>
+                  )}
 
-                {/* Password */}
-                <div>
-                  <label className="block font-medium text-[#cbd5e1] mb-1.5">
-                    {editingUser ? 'New Password (Leave blank to keep current)' : 'Password *'}
-                  </label>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6b7280]" />
-                    <input
-                      type="password"
-                      required={!editingUser}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="form-input pl-9 text-xs"
-                    />
-                  </div>
-                </div>
-
-                {/* Role Radio Picker (Section 0 Mockup) */}
-                <div>
-                  <label className="block font-medium text-[#cbd5e1] mb-2">
-                    Assigned Role &amp; Permissions *
-                  </label>
-                  <div className="space-y-2 border border-[#2a2d3e] rounded-xl p-3 bg-[#111318]">
-                    {[
-                      { id: 'employee', label: 'Employee', desc: 'Own attendance, leaves, and payslips only' },
-                      { id: 'hr_manager', label: 'HR Manager', desc: 'CRUD on HR master data & leaves. No payroll access.' },
-                      { id: 'hr_payroll_user', label: 'HR Payroll User', desc: 'Can run & view payruns. Read-only on structures & rules.' },
-                      { id: 'hr_payroll_manager', label: 'HR Payroll Manager', desc: 'Full CRUD on Payruns, Payslips, Rules & Structures.' },
-                      { id: 'admin', label: 'Admin', desc: 'Unrestricted system-wide access and user administration.' },
-                    ].map((r) => (
-                      <label
-                        key={r.id}
-                        className={cn(
-                          'flex items-start gap-2.5 p-2 rounded-lg cursor-pointer transition-colors',
-                          role === r.id ? 'bg-[#3b6ef0]/15 border border-[#3b6ef0]/40' : 'hover:bg-[#1a1d27]'
-                        )}
-                      >
-                        <input
-                          type="radio"
-                          name="roleSelection"
-                          value={r.id}
-                          checked={role === r.id}
-                          onChange={() => setRole(r.id as any)}
-                          className="mt-0.5 text-[#3b6ef0] focus:ring-0"
-                        />
-                        <div>
-                          <p className="font-semibold text-white text-xs">{r.label}</p>
-                          <p className="text-[11px] text-[#6b7280]">{r.desc}</p>
-                        </div>
+                  <form id="user-modal-form" onSubmit={handleSubmit} className="space-y-3.5 text-xs">
+                    {/* Linked Employee */}
+                    <div>
+                      <label className="block font-medium text-[#cbd5e1] mb-1">
+                        Linked Employee (Optional)
                       </label>
-                    ))}
-                  </div>
+                      <select
+                        value={selectedEmpId}
+                        onChange={(e) => handleSelectEmployee(e.target.value)}
+                        className="form-input text-xs"
+                      >
+                        <option value="">No linked employee (System Only)</option>
+                        {employees.map((emp) => (
+                          <option key={emp.id} value={emp.id}>
+                            {emp.name} ({emp.code})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Work Email */}
+                    <div>
+                      <label className="block font-medium text-[#cbd5e1] mb-1">
+                        Work Email (Login Username) *
+                      </label>
+                      <div className="relative">
+                        <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6b7280]" />
+                        <input
+                          type="email"
+                          required
+                          disabled={Boolean(editingUser)}
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="user@company.com"
+                          className="form-input pl-9 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Password */}
+                    <div>
+                      <label className="block font-medium text-[#cbd5e1] mb-1">
+                        {editingUser ? 'New Password (Leave blank to keep current)' : 'Password *'}
+                      </label>
+                      <div className="relative">
+                        <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6b7280]" />
+                        <input
+                          type="password"
+                          required={!editingUser}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="form-input pl-9 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Role Radio Picker (Section 0 Mockup) */}
+                    <div>
+                      <label className="block font-medium text-[#cbd5e1] mb-1.5">
+                        Assigned Role &amp; Permissions *
+                      </label>
+                      <div className="space-y-1.5 border border-[#2a2d3e] rounded-xl p-2.5 bg-[#111318]">
+                        {[
+                          { id: 'employee', label: 'Employee', desc: 'Own attendance, leaves, and payslips only' },
+                          { id: 'hr_manager', label: 'HR Manager', desc: 'CRUD on HR master data & leaves. No payroll access.' },
+                          { id: 'hr_payroll_user', label: 'HR Payroll User', desc: 'Can run & view payruns. Read-only on structures & rules.' },
+                          { id: 'hr_payroll_manager', label: 'HR Payroll Manager', desc: 'Full CRUD on Payruns, Payslips, Rules & Structures.' },
+                          { id: 'admin', label: 'Admin', desc: 'Unrestricted system-wide access and user administration.' },
+                        ].map((r) => (
+                          <label
+                            key={r.id}
+                            className={cn(
+                              'flex items-start gap-2.5 py-1.5 px-2.5 rounded-lg cursor-pointer transition-colors',
+                              role === r.id ? 'bg-[#3b6ef0]/15 border border-[#3b6ef0]/40' : 'hover:bg-[#1a1d27]'
+                            )}
+                          >
+                            <input
+                              type="radio"
+                              name="roleSelection"
+                              value={r.id}
+                              checked={role === r.id}
+                              onChange={() => setRole(r.id as any)}
+                              className="mt-0.5 text-[#3b6ef0] focus:ring-0"
+                            />
+                            <div>
+                              <p className="font-semibold text-white text-xs">{r.label}</p>
+                              <p className="text-[11px] text-[#6b7280]">{r.desc}</p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Status Toggle */}
+                    <div>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isActive}
+                          onChange={(e) => setIsActive(e.target.checked)}
+                          className="rounded border-[#2a2d3e] bg-[#111318] text-[#3b6ef0] focus:ring-0 w-4 h-4"
+                        />
+                        <span className="font-medium text-white text-xs">Account is Active</span>
+                      </label>
+                    </div>
+                  </form>
                 </div>
 
-                {/* Status Toggle */}
-                <div className="pt-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isActive}
-                      onChange={(e) => setIsActive(e.target.checked)}
-                      className="rounded border-[#2a2d3e] bg-[#111318] text-[#3b6ef0] focus:ring-0 w-4 h-4"
-                    />
-                    <span className="font-medium text-white text-xs">Account is Active</span>
-                  </label>
+                {/* Modal Footer */}
+                <div className="px-6 py-3.5 bg-[#0e1017] border-t border-[#2a2d3e] flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsDrawerOpen(false)}
+                    className="px-4 py-2 text-xs font-medium text-[#9ca3af] hover:text-white transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    form="user-modal-form"
+                    disabled={loading}
+                    className="btn-primary text-xs"
+                  >
+                    {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : editingUser ? 'Update User' : 'Save User'}
+                  </button>
                 </div>
-              </form>
-            </div>
-
-            {/* Footer Buttons */}
-            <div className="pt-4 border-t border-[#2a2d3e] flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setIsDrawerOpen(false)}
-                className="px-4 py-2 text-xs text-[#9ca3af] hover:text-white"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                form="user-drawer-form"
-                disabled={loading}
-                className="btn-primary text-xs"
-              >
-                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : editingUser ? 'Update User' : 'Save User'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

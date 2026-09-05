@@ -32,9 +32,17 @@ export async function POST(
     return NextResponse.json({ error: 'Payslip not found' }, { status: 404 });
   }
 
-  const email = payslip.employee?.email;
+  let customRecipient: string | undefined;
+  try {
+    const body = await _req.json();
+    customRecipient = body.recipientEmail?.trim();
+  } catch {
+    // Body optional
+  }
+
+  const email = customRecipient || payslip.employee?.email;
   if (!email) {
-    return NextResponse.json({ error: 'Employee has no email address configured' }, { status: 400 });
+    return NextResponse.json({ error: 'No recipient email address specified' }, { status: 400 });
   }
 
   const empName = `${payslip.employee?.firstName} ${payslip.employee?.lastName}`;

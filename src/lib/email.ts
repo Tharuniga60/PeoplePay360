@@ -1,7 +1,8 @@
 /**
  * Brevo (formerly Sendinblue) Transactional Email Service
  * Handles single & bulk payslip email distribution with PDF attachments.
- * If BREVO_API_KEY is not configured, provides graceful audit simulation.
+ * If BREVO_API_KEY is not configured or uses placeholder values, provides graceful audit simulation.
+ * Fully compatible with Vercel Serverless and local environments.
  */
 
 export interface EmailRecipient {
@@ -29,17 +30,58 @@ export interface EmailDispatchResult {
   recipientCount: number;
 }
 
+const sanitize = (val?: string | null): string =>
+  val ? val.trim().replace(/^["']|["']$/g, '') : '';
+
+export function getBrevoConfig() {
+  const apiKey = sanitize(process.env.BREVO_API_KEY);
+  const senderEmail = sanitize(process.env.BREVO_SENDER_EMAIL);
+  const senderName = sanitize(process.env.BREVO_SENDER_NAME) || 'PeoplePay360 Payroll';
+  const testRecipient = sanitize(process.env.BREVO_TEST_RECIPIENT);
+
+  const isPlaceholderKey =
+    !apiKey ||
+    apiKey === 'xkeysib-your-actual-api-key' ||
+    apiKey.includes('your-actual-api-key') ||
+    apiKey.includes('replace-with');
+
+  const isPlaceholderSender =
+    !senderEmail ||
+    senderEmail === 'your-verified-email@example.com' ||
+    senderEmail.includes('example.com');
+
+  const isConfigured = Boolean(apiKey && !isPlaceholderKey && senderEmail && !isPlaceholderSender);
+
+  return {
+    apiKey,
+    senderEmail,
+    senderName,
+    testRecipient,
+    isPlaceholderKey,
+    isPlaceholderSender,
+    isConfigured,
+    maskedApiKey: apiKey && !isPlaceholderKey
+      ? `${apiKey.slice(0, 10)}...${apiKey.slice(-4)}`
+      : null,
+  };
+}
+
 /**
  * Dispatch an email via Brevo REST API v3
  */
 export async function sendEmailWithBrevo(options: SendEmailOptions): Promise<EmailDispatchResult> {
-  const apiKey = process.env.BREVO_API_KEY?.trim();
-  const senderEmail = process.env.BREVO_SENDER_EMAIL?.trim() || 'payroll@peoplepay360.com';
-  const senderName = process.env.BREVO_SENDER_NAME?.trim() || 'PeoplePay360 Payroll';
+  const config = getBrevoConfig();
 
-  // If no API key is provided, log simulation and return graceful success
-  if (!apiKey) {
-    console.info('[BREVO SIMULATION] BREVO_API_KEY not configured. Simulated dispatch for:', {
+  // If no API key or placeholder key is configured, log simulation and return graceful success
+  if (!config.isConfigured) {
+    let reason = 'BREVO_API_KEY not configured';
+    if (config.isPlaceholderKey) {
+      reason = 'BREVO_API_KEY is using a placeholder value';
+    } else if (config.isPlaceholderSender) {
+      reason = 'BREVO_SENDER_EMAIL is missing or uses example.com placeholder';
+    }
+
+    console.info(`[BREVO SIMULATION] (${reason}). Simulated dispatch for:`, {
       to: options.to.map((r) => r.email),
       subject: options.subject,
       attachmentCount: options.attachments?.length ?? 0,
@@ -51,18 +93,27 @@ export async function sendEmailWithBrevo(options: SendEmailOptions): Promise<Ema
       simulated: true,
       messageId: `sim_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       recipientCount: options.to.length,
+      error: undefined,
     };
   }
 
   try {
+    // If a global test recipient override is set (useful for testing on Vercel/dev), route all emails there
+    const targetRecipients = config.testRecipient
+      ? [{ email: config.testRecipient, name: options.to[0]?.name || config.testRecipient }]
+      : options.to;
+
     const payload = {
-      sender: { name: senderName, email: senderEmail },
-      to: options.to.map((r) => ({ email: r.email, name: r.name || r.email })),
+      sender: { name: config.senderName, email: config.senderEmail },
+      to: targetRecipients.map((r) => ({
+        email: r.email.trim(),
+        name: (r.name || r.email).trim(),
+      })),
       subject: options.subject,
       htmlContent: options.htmlContent,
       ...(options.attachments && options.attachments.length > 0 && {
         attachment: options.attachments.map((a) => ({
-          content: a.content,
+          content: a.content.replace(/^data:[^;]+;base64,/, ''), // Ensure raw base64 string
           name: a.name,
         })),
       }),
@@ -71,21 +122,42 @@ export async function sendEmailWithBrevo(options: SendEmailOptions): Promise<Ema
     const res = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
-        'api-key': apiKey,
+        'api-key': config.apiKey,
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
       body: JSON.stringify(payload),
     });
 
-    const data = await res.json();
+    const responseText = await res.text();
+    let data: Record<string, any> = {};
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      data = { message: responseText };
+    }
 
     if (!res.ok) {
-      console.error('[BREVO ERROR]', data);
+      let friendlyError = data.message || data.error || responseText;
+
+      if (res.status === 401 || data.code === 'unauthorized') {
+        friendlyError = `Brevo Authentication Failed (HTTP 401): Invalid API key. Verify that BREVO_API_KEY in .env.local or Vercel Environment Variables is an active v3 API key from https://app.brevo.com/settings/keys/api`;
+      } else if (res.status === 400 && (data.code === 'invalid_parameter' || friendlyError?.toLowerCase().includes('sender'))) {
+        friendlyError = `Brevo Sender Error (HTTP 400): Sender email '${config.senderEmail}' is not verified. In Brevo, go to 'Senders & IP' > 'Senders' to add and verify this email.`;
+      } else if (res.status === 402 || res.status === 403) {
+        friendlyError = `Brevo Account Limit (HTTP ${res.status}): Account limit reached or plan restriction. ${data.message || ''}`;
+      }
+
+      console.error('[BREVO ERROR RESPONSE]', {
+        status: res.status,
+        error: friendlyError,
+        raw: data,
+      });
+
       return {
         success: false,
         simulated: false,
-        error: data.message || 'Brevo API error',
+        error: friendlyError,
         recipientCount: options.to.length,
       };
     }
@@ -93,16 +165,16 @@ export async function sendEmailWithBrevo(options: SendEmailOptions): Promise<Ema
     return {
       success: true,
       simulated: false,
-      messageId: data.messageId,
-      recipientCount: options.to.length,
+      messageId: data.messageId || `brevo_${Date.now()}`,
+      recipientCount: targetRecipients.length,
     };
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Network error connecting to Brevo';
+    const msg = err instanceof Error ? err.message : 'Network error connecting to Brevo API';
     console.error('[BREVO EXCEPTION]', msg);
     return {
       success: false,
       simulated: false,
-      error: msg,
+      error: `Brevo Network Error: ${msg}`,
       recipientCount: options.to.length,
     };
   }
@@ -137,49 +209,57 @@ export async function sendPayslipEmail({
 <head>
   <meta charset="utf-8">
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0f1117; color: #e2e8f0; padding: 24px; }
-    .card { max-width: 580px; margin: 0 auto; background-color: #1a1d27; border: 1px solid #2a2d3e; border-radius: 12px; padding: 32px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0f1117; color: #e2e8f0; padding: 24px; margin: 0; }
+    .card { max-width: 580px; margin: 0 auto; background-color: #1a1d27; border: 1px solid #2a2d3e; border-radius: 12px; padding: 32px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
     .header { border-bottom: 1px solid #2a2d3e; padding-bottom: 16px; margin-bottom: 24px; }
-    .title { color: #ffffff; font-size: 20px; font-weight: 700; margin: 0; }
+    .title { color: #ffffff; font-size: 20px; font-weight: 700; margin: 0; letter-spacing: -0.5px; }
     .subtitle { color: #94a3b8; font-size: 13px; margin-top: 4px; }
-    .badge { display: inline-block; background-color: rgba(59,110,240,0.15); color: #60a5fa; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; margin-top: 8px; }
+    .badge { display: inline-block; background-color: rgba(59,110,240,0.15); color: #60a5fa; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
     .metrics { display: flex; margin: 24px 0; background-color: #111319; border: 1px solid #2a2d3e; border-radius: 8px; }
     .metric-col { flex: 1; padding: 16px; text-align: center; border-right: 1px solid #2a2d3e; }
     .metric-col:last-child { border-right: none; }
-    .metric-label { font-size: 11px; text-transform: uppercase; color: #64748b; margin-bottom: 4px; }
-    .metric-value { font-size: 18px; font-weight: 700; color: #ffffff; }
+    .metric-label { font-size: 11px; text-transform: uppercase; color: #64748b; margin-bottom: 4px; font-weight: 600; }
+    .metric-value { font-size: 20px; font-weight: 800; color: #ffffff; font-family: monospace; }
     .metric-value.net { color: #34d399; }
-    .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #2a2d3e; font-size: 12px; color: #64748b; text-align: center; }
+    .notice { font-size: 13px; color: #94a3b8; line-height: 1.5; margin-top: 20px; }
+    .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #2a2d3e; font-size: 11px; color: #64748b; text-align: center; }
   </style>
 </head>
 <body>
   <div class="card">
     <div class="header">
-      <h1 class="title">PeoplePay360 — Payslip Delivery</h1>
-      <p class="subtitle">Pay Period: ${period} (${payrunName})</p>
-      <span class="badge">CONFIDENTIAL PAYSLIP</span>
+      <h1 class="title">PEOPLEPAY360</h1>
+      <p class="subtitle">Payslip for ${period} &middot; ${payrunName}</p>
+      <span class="badge">Confidential Salary Statement</span>
     </div>
 
-    <p>Dear <strong>${employeeName}</strong>,</p>
-    <p>Your payslip for <strong>${period}</strong> has been finalized and processed. Please find a summary of your earnings below:</p>
+    <p style="margin: 0 0 12px; font-size: 15px;">Dear <strong>${employeeName}</strong>,</p>
+    <p style="margin: 0 0 20px; font-size: 14px; color: #cbd5e1; line-height: 1.5;">
+      Your salary for the period <strong>${period}</strong> has been processed and credited. Please find the earnings and deductions summary below:
+    </p>
 
-    <div class="metrics">
-      <div class="metric-col">
-        <div class="metric-label">Gross Earnings</div>
-        <div class="metric-value">${formattedGross}</div>
-      </div>
-      <div class="metric-col">
-        <div class="metric-label">Take-Home (Net Pay)</div>
-        <div class="metric-value net">${formattedNet}</div>
-      </div>
-    </div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #111319; border: 1px solid #2a2d3e; border-radius: 8px; margin: 20px 0;">
+      <tr>
+        <td width="50%" style="padding: 16px; text-align: center; border-right: 1px solid #2a2d3e;">
+          <div style="font-size: 11px; text-transform: uppercase; color: #64748b; margin-bottom: 4px; font-weight: 600;">Gross Salary</div>
+          <div style="font-size: 20px; font-weight: 800; color: #ffffff; font-family: monospace;">${formattedGross}</div>
+        </td>
+        <td width="50%" style="padding: 16px; text-align: center;">
+          <div style="font-size: 11px; text-transform: uppercase; color: #64748b; margin-bottom: 4px; font-weight: 600;">Net Salary (Take-Home)</div>
+          <div style="font-size: 20px; font-weight: 800; color: #34d399; font-family: monospace;">${formattedNet}</div>
+        </td>
+      </tr>
+    </table>
 
-    <p style="font-size: 13px; color: #94a3b8;">
-      ${pdfBase64 ? 'A detailed PDF copy of your payslip is attached to this email.' : 'You can log in to your PeoplePay360 employee portal to view and download your full salary computation trace.'}
+    <p class="notice">
+      ${pdfBase64
+        ? 'A detailed breakdown of your basic pay, allowances, and statutory deductions is attached as a PDF.'
+        : 'You can log in to your PeoplePay360 Employee Self-Service portal at any time to view, download, or print your itemized payslip.'
+      }
     </p>
 
     <div class="footer">
-      PeoplePay360 Integrated HR & Payroll Operations • Automated confidential delivery.
+      PeoplePay360 Integrated HR &amp; Payroll Platform &middot; Automated confidential delivery.
     </div>
   </div>
 </body>
@@ -197,7 +277,7 @@ export async function sendPayslipEmail({
 
   return sendEmailWithBrevo({
     to: [{ email: toEmail, name: employeeName }],
-    subject: `Payslip for ${period} — PeoplePay360`,
+    subject: `Salary Statement for ${period} — PeoplePay360`,
     htmlContent,
     attachments,
   });

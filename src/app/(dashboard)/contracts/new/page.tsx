@@ -54,7 +54,7 @@ export default async function NewContractPage({
       <div>
         <h1 className="text-2xl font-bold text-white tracking-tight">Create Contract</h1>
         <p className="text-[#6b7280] text-sm mt-0.5">
-          Define working schedule, wage, and salary structure with period matching.
+          Define working schedule, salary, and salary structure with period matching.
         </p>
       </div>
 

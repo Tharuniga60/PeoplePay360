@@ -154,7 +154,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
               <p className="text-sm font-medium text-white">{activeContract.name}</p>
             </div>
             <div>
-              <p className="text-xs text-[#4b5563] mb-1">Monthly Wage</p>
+              <p className="text-xs text-[#4b5563] mb-1">Monthly Salary</p>
               <p className="text-sm font-bold text-emerald-400">{formatCurrency(parseFloat(activeContract.wage.toString()))}</p>
             </div>
             <div>
@@ -213,7 +213,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
             <tr>
               <th>Contract</th>
               <th>Structure</th>
-              <th>Wage</th>
+              <th>Salary</th>
               <th>Start</th>
               <th>End</th>
               <th>Status</th>
@@ -226,7 +226,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
                 <td>{c.salaryStructure?.name ?? '—'}</td>
                 <td className="font-mono">{formatCurrency(parseFloat(c.wage.toString()))}</td>
                 <td className="text-[#6b7280]">{formatDate(c.startDate)}</td>
-                <td className="text-[#6b7280]">{c.endDate ? formatDate(c.endDate) : 'Open-ended'}</td>
+                <td className="text-[#6b7280]">{c.endDate ? formatDate(c.endDate) : 'Ongoing'}</td>
                 <td>
                   <span className={cn('status-pill', CONTRACT_STATUS_COLORS[c.status])}>
                     {snakeToTitle(c.status)}

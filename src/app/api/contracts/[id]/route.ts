@@ -74,18 +74,15 @@ export async function PATCH(
     const validTransitions: Record<string, string[]> = {
       draft: ['active', 'cancelled'],
       active: ['expired', 'cancelled'],
-      expired: ['draft'],
-      cancelled: ['draft'],
+      expired: ['active', 'cancelled'],
+      cancelled: ['active'],
     };
 
     const allowed = validTransitions[existing.status] || [];
     if (!allowed.includes(parsed.data.status)) {
       return NextResponse.json(
         {
-          error: `Invalid contract state transition: Cannot change status from '${existing.status}' to '${parsed.data.status}'. ` +
-            (existing.status === 'expired' || existing.status === 'cancelled'
-              ? `Reset contract to 'draft' first before activating.`
-              : `Allowed transitions: ${allowed.join(', ')}`),
+          error: `Invalid contract state transition: Cannot change status from '${existing.status}' to '${parsed.data.status}'. Allowed transitions: ${allowed.join(', ')}`,
         },
         { status: 400 }
       );
