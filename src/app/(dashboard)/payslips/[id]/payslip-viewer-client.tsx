@@ -159,13 +159,14 @@ export function PayslipViewerClient({ payslip }: PayslipViewerClientProps) {
 
         {/* Zero-Storage PDF Download */}
         {PayslipPDFDocument && (
+          // @ts-expect-error - React-PDF types are outdated for function children in React 18
           <PDFDownloadLink
             document={<PayslipPDFDocument data={pdfData} />}
             fileName={`payslip-${emp.employeeCode}-${payrun.periodStart}.pdf`}
           >
-            {({ loading }) => (
-              <button className="btn-primary" disabled={loading}>
-                {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Generating PDF...</> : <><Download className="w-4 h-4" />Download PDF</>}
+            {(props: any) => (
+              <button className="btn-primary" disabled={props.loading}>
+                {props.loading ? <><Loader2 className="w-4 h-4 animate-spin" />Generating PDF...</> : <><Download className="w-4 h-4" />Download PDF</>}
               </button>
             )}
           </PDFDownloadLink>
