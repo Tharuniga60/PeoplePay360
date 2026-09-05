@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   Clock,
   LogIn,
@@ -14,6 +15,7 @@ import {
   Calendar,
   ShieldCheck,
   Zap,
+  ChevronRight,
 } from 'lucide-react';
 import { formatDate, cn, snakeToTitle } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -287,9 +289,13 @@ export function AttendanceClient({
                   const isManuallyAdjusted = r.notes?.includes('Manually adjusted');
 
                   return (
-                    <tr key={r.id}>
+                    <tr
+                      key={r.id}
+                      onClick={() => router.push(`/attendance/${r.id}`)}
+                      className="hover:bg-[#1f2438]/50 transition-colors cursor-pointer group"
+                    >
                       <td>
-                        <p className="font-medium text-white">
+                        <p className="font-medium text-white group-hover:text-[#3b6ef0] transition-colors">
                           {r.employee.firstName} {r.employee.lastName}
                         </p>
                         <p className="text-xs text-[#4b5563]">{r.employee.employeeCode}</p>
@@ -341,17 +347,29 @@ export function AttendanceClient({
                           {snakeToTitle(r.status)}
                         </span>
                       </td>
-                      {isManager && (
-                        <td className="text-right">
-                          <button
-                            onClick={() => openCorrectionDrawer(r)}
-                            className="inline-flex items-center gap-1 text-xs text-[#3b6ef0] hover:text-[#5887ff] font-medium transition-colors px-2 py-1 rounded hover:bg-[#3b6ef0]/10"
+                      <td className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {isManager && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openCorrectionDrawer(r);
+                              }}
+                              className="inline-flex items-center gap-1 text-xs text-[#3b6ef0] hover:text-[#5887ff] font-medium transition-colors px-2 py-1 rounded hover:bg-[#3b6ef0]/10"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                              Correct
+                            </button>
+                          )}
+                          <Link
+                            href={`/attendance/${r.id}`}
+                            className="p-1 rounded text-[#6b7280] hover:text-white transition-colors"
+                            title="View Attendance Details"
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
-                            Correct
-                          </button>
-                        </td>
-                      )}
+                            <ChevronRight className="w-4 h-4" />
+                          </Link>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}

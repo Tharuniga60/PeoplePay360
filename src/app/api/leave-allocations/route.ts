@@ -11,17 +11,32 @@ export async function GET(req: NextRequest) {
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const employeeId = searchParams.get('employeeId');
+  const employeeId = searchParams.get('employeeId') || searchParams.get('employee_id');
 
-  if (!employeeId) {
-    return NextResponse.json({ error: 'employeeId is required' }, { status: 400 });
+  if (session.user.role === 'employee') {
+    const targetEmpId = employeeId || session.user.employeeId;
+    if (targetEmpId !== session.user.employeeId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    const result = await db.query.leaveAllocations.findMany({
+      where: eq(leaveAllocations.employeeId, targetEmpId!),
+      with: { leaveType: true, employee: true },
+      orderBy: (la, { desc }) => [desc(la.year)],
+    });
+    return NextResponse.json({ data: result });
   }
 
-  const result = await db.query.leaveAllocations.findMany({
-    where: eq(leaveAllocations.employeeId, employeeId),
-    with: { leaveType: true },
-    orderBy: (la, { desc }) => [desc(la.year)],
-  });
+  const result = employeeId
+    ? await db.query.leaveAllocations.findMany({
+        where: eq(leaveAllocations.employeeId, employeeId),
+        with: { leaveType: true, employee: true },
+        orderBy: (la, { desc }) => [desc(la.year)],
+      })
+    : await db.query.leaveAllocations.findMany({
+        with: { leaveType: true, employee: true },
+        orderBy: (la, { desc }) => [desc(la.year)],
+        limit: 100,
+      });
 
   return NextResponse.json({ data: result });
 }
@@ -29,6 +44,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  if (session.user.role === 'employee') {
+    return NextResponse.json({ error: 'Forbidden: Employees cannot create leave allocations' }, { status: 403 });
+  }
 
   const body = await req.json();
   const parsed = createLeaveAllocationSchema.safeParse(body);

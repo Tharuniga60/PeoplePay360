@@ -5,9 +5,9 @@ import { db } from '@/db';
 import { salaryRules, salaryStructures, type SalaryRule, type SalaryStructure } from '@/db/schema';
 import { eq, asc } from 'drizzle-orm';
 import Link from 'next/link';
-import { BookOpen, ExternalLink, Sliders } from 'lucide-react';
+import { BookOpen, ExternalLink, Plus, Sliders, ChevronRight, Edit3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { canComputePayrun } from '@/lib/rbac';
+import { canComputePayrun, canManagePayrollConfig } from '@/lib/rbac';
 
 export const metadata: Metadata = { title: 'Salary Rules' };
 
@@ -27,6 +27,8 @@ export default async function SalaryRulesPage() {
     redirect('/payroll/payruns');
   }
 
+  const isConfigManager = canManagePayrollConfig(role);
+
   const rules: RuleWithStructure[] = (await db.query.salaryRules.findMany({
     with: { salaryStructure: true },
     orderBy: [asc(salaryRules.sequence)],
@@ -41,10 +43,18 @@ export default async function SalaryRulesPage() {
             Ordered sequence of calculation rules powering the deterministic salary computation engine.
           </p>
         </div>
-        <Link href="/payroll/structures" className="btn-secondary">
-          <BookOpen className="w-4 h-4" />
-          Manage Structures
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/payroll/structures" className="btn-secondary">
+            <BookOpen className="w-4 h-4" />
+            Manage Structures
+          </Link>
+          {isConfigManager && (
+            <Link href="/payroll/rules/new" className="btn-primary">
+              <Plus className="w-4 h-4" />
+              New Salary Rule
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="section-card">
@@ -68,14 +78,23 @@ export default async function SalaryRulesPage() {
                 <th>Calculation Formula</th>
                 <th>Structure</th>
                 <th>Status</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {rules.map((r) => (
-                <tr key={r.id}>
+                <tr key={r.id} className="hover:bg-[#1f2438]/50 transition-colors">
                   <td className="font-mono text-xs text-[#6b7280]">{r.sequence}</td>
-                  <td className="font-mono font-bold text-xs text-[#3b6ef0]">{r.code}</td>
-                  <td className="font-medium text-white">{r.name}</td>
+                  <td className="font-mono font-bold text-xs text-[#3b6ef0]">
+                    <Link href={`/payroll/rules/${r.id}`} className="hover:underline">
+                      {r.code}
+                    </Link>
+                  </td>
+                  <td className="font-medium text-white">
+                    <Link href={`/payroll/rules/${r.id}`} className="hover:text-[#3b6ef0] transition-colors">
+                      {r.name}
+                    </Link>
+                  </td>
                   <td>
                     <span
                       className={cn(
@@ -121,6 +140,15 @@ export default async function SalaryRulesPage() {
                     >
                       {r.isActive ? 'Active' : 'Disabled'}
                     </span>
+                  </td>
+                  <td className="text-right">
+                    <Link
+                      href={`/payroll/rules/${r.id}`}
+                      className="inline-flex items-center gap-1 text-xs text-[#3b6ef0] hover:text-blue-400 font-medium transition-colors"
+                    >
+                      <Edit3 className="w-3 h-3" />
+                      Edit
+                    </Link>
                   </td>
                 </tr>
               ))}

@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { ArrowLeft, Mail, Phone, Building2, Briefcase, CreditCard, Calendar, Plus } from 'lucide-react';
 import { formatDate, formatCurrency, getInitials, CONTRACT_STATUS_COLORS, cn, snakeToTitle } from '@/lib/utils';
 import { EmployeeSmartButtons } from '@/components/employee-smart-buttons';
+import { EmployeeArchiveButton } from './employee-archive-button';
 import { canManageEmployees } from '@/lib/rbac';
 import { redirect } from 'next/navigation';
 
@@ -65,6 +66,11 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
     .from(payslips)
     .where(eq(payslips.employeeId, employee.id));
 
+  const [allocCount] = await db
+    .select({ count: count() })
+    .from(leaveAllocations)
+    .where(eq(leaveAllocations.employeeId, employee.id));
+
   const activeContract = employee.contracts.find((c) => c.status === 'active');
 
   return (
@@ -105,6 +111,12 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
                 <span className="status-pill bg-[#1e2235] text-[#6b7280] border border-[#2a2d3e]">
                   {snakeToTitle(employee.employmentType)}
                 </span>
+                {isManager && (
+                  <EmployeeArchiveButton
+                    employeeId={employee.id}
+                    isActive={employee.isActive}
+                  />
+                )}
               </div>
             </div>
 
@@ -125,6 +137,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
         contractCount={activeContractCount}
         attendanceCount={attCount.count}
         leaveBalance={Math.floor(totalLeaveBalance)}
+        allocationCount={allocCount?.count ?? 0}
         payslipCount={psCount.count}
       />
 

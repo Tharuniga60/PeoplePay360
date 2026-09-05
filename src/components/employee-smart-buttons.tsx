@@ -20,6 +20,7 @@ interface EmployeeSmartButtonsProps {
   attendanceCount: number;
   leaveBalance: number;
   payslipCount: number;
+  allocationCount?: number;
 }
 
 export function EmployeeSmartButtons({
@@ -28,6 +29,7 @@ export function EmployeeSmartButtons({
   attendanceCount,
   leaveBalance,
   payslipCount,
+  allocationCount = 0,
 }: EmployeeSmartButtonsProps) {
   const buttons: SmartButton[] = [
     {
@@ -58,6 +60,15 @@ export function EmployeeSmartButtons({
       bg: 'bg-purple-500/10 border-purple-800/40',
     },
     {
+      label: 'Allocations',
+      description: `${allocationCount} Records`,
+      count: allocationCount,
+      href: `/time-off/allocations?employee_id=${employeeId}`,
+      icon: Calendar,
+      color: 'text-indigo-400',
+      bg: 'bg-indigo-500/10 border-indigo-800/40',
+    },
+    {
       label: 'Payslips',
       description: `${payslipCount} Issued`,
       count: payslipCount,
@@ -69,7 +80,7 @@ export function EmployeeSmartButtons({
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
       {buttons.map((btn) => (
         <Link
           key={btn.label}

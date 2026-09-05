@@ -1,12 +1,15 @@
 import type { Metadata } from 'next';
 import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { db } from '@/db';
 import { leaveTypes, type LeaveType } from '@/db/schema';
 import { eq, asc } from 'drizzle-orm';
 import { Settings, Plus, CheckCircle, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { canManageEmployees } from '@/lib/rbac';
+
+import { TypesTableClient } from './types-table-client';
 
 export const metadata: Metadata = { title: 'Leave Types Configuration' };
 
@@ -36,6 +39,10 @@ export default async function LeaveTypesConfigPage() {
             Configure leave policies, paid/unpaid status, and allocation requirements.
           </p>
         </div>
+        <Link href="/time-off/types/new" className="btn-primary inline-flex items-center gap-2">
+          <Plus className="w-4 h-4" />
+          New Time Off Type
+        </Link>
       </div>
 
       <div className="section-card">
@@ -44,61 +51,7 @@ export default async function LeaveTypesConfigPage() {
           <h2 className="text-sm font-semibold text-white">Configured Leave Types ({types.length})</h2>
         </div>
 
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Policy Name</th>
-              <th>Code</th>
-              <th>Type</th>
-              <th>Allocation Required</th>
-              <th>Max Days / Year</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {types.map((type) => (
-              <tr key={type.id}>
-                <td>
-                  <p className="font-medium text-white">{type.name}</p>
-                  {type.description && <p className="text-xs text-[#6b7280]">{type.description}</p>}
-                </td>
-                <td className="font-mono text-xs text-white">{type.code}</td>
-                <td>
-                  <span
-                    className={cn(
-                      'status-pill',
-                      type.isPaid
-                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-800/40'
-                        : 'bg-yellow-500/10 text-yellow-400 border border-yellow-800/40'
-                    )}
-                  >
-                    {type.isPaid ? 'Paid Leave' : 'Unpaid (Loss of Pay)'}
-                  </span>
-                </td>
-                <td>
-                  <span className="text-xs text-[#9ca3af]">
-                    {type.isPaid ? 'Yes (Requires Allocation)' : 'No (Freely requested)'}
-                  </span>
-                </td>
-                <td className="font-mono text-xs text-white">
-                  {type.maxDaysPerYear ? `${type.maxDaysPerYear} days` : 'Unlimited'}
-                </td>
-                <td>
-                  <span
-                    className={cn(
-                      'status-pill',
-                      type.isActive
-                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-800/40'
-                        : 'bg-[#1e2235] text-[#4b5563]'
-                    )}
-                  >
-                    {type.isActive ? 'Active' : 'Disabled'}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <TypesTableClient types={types} />
       </div>
     </div>
   );

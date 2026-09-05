@@ -6,6 +6,7 @@ import { auth } from '@/auth';
 import { createLeaveRequestSchema, updateLeaveStatusSchema } from '@/lib/validations';
 import { logAuditEvent } from '@/lib/audit';
 import { canApproveLeave } from '@/lib/rbac';
+import { computeLeaveBalance } from '@/lib/engine/leave-balance-engine';
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -15,14 +16,16 @@ export async function GET(req: NextRequest) {
   const employeeId = searchParams.get('employeeId') || searchParams.get('employee_id');
   const status = searchParams.get('status');
 
+  let targetEmployeeId = employeeId;
   if (session.user.role === 'employee') {
-    if (!employeeId || employeeId !== session.user.employeeId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (employeeId && employeeId !== session.user.employeeId) {
+      return NextResponse.json({ error: 'Forbidden: Cannot access other employees leave records' }, { status: 403 });
     }
+    targetEmployeeId = session.user.employeeId;
   }
 
   const conditions = [];
-  if (employeeId) conditions.push(eq(leaveRequests.employeeId, employeeId));
+  if (targetEmployeeId) conditions.push(eq(leaveRequests.employeeId, targetEmployeeId));
   if (status) conditions.push(eq(leaveRequests.status, status as 'pending'));
 
   const result = await db.query.leaveRequests.findMany({
@@ -48,27 +51,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden: Can only submit own leave requests' }, { status: 403 });
   }
 
-  // Real-time balance check: Remaining = Allocated - (Approved + Pending)
+  // Centralized Leave Balance Engine verification
   const year = new Date(parsed.data.startDate).getFullYear();
-  const allocation = await db.query.leaveAllocations.findFirst({
-    where: and(
-      eq(leaveAllocations.employeeId, parsed.data.employeeId),
-      eq(leaveAllocations.leaveTypeId, parsed.data.leaveTypeId),
-      eq(leaveAllocations.year, year)
-    ),
+  const balanceSummary = await computeLeaveBalance({
+    employeeId: parsed.data.employeeId,
+    leaveTypeId: parsed.data.leaveTypeId,
+    year,
+    requestStartDate: parsed.data.startDate,
+    requestEndDate: parsed.data.endDate,
   });
 
-  if (allocation) {
-    const total = parseFloat(allocation.totalDays.toString());
-    const used = parseFloat(allocation.usedDays.toString());
-    const remaining = total - used;
-    const requested = parsed.data.numberOfDays;
-    if (requested > remaining) {
-      return NextResponse.json(
-        { error: `Insufficient leave balance. You have ${remaining} days remaining, requested ${requested} days.` },
-        { status: 400 }
-      );
-    }
+  if (parsed.data.numberOfDays > balanceSummary.remainingDays) {
+    return NextResponse.json(
+      {
+        error: `Insufficient leave balance. You have ${balanceSummary.remainingDays} days available for this leave type, but requested ${parsed.data.numberOfDays} days.`,
+        details: balanceSummary,
+      },
+      { status: 422 }
+    );
   }
 
   const insertData = {

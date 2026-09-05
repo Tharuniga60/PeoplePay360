@@ -10,6 +10,7 @@ import {
   attendances,
   leaveRequests,
   contracts,
+  leaveTypes,
 } from '@/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 import { canComputePayrun } from '@/lib/rbac';
@@ -36,6 +37,8 @@ export default async function ReportsDashboardPage() {
     allDepartments,
     allLeaves,
     allAttendances,
+    allContracts,
+    allLeaveTypes,
   ] = await Promise.all([
     db.query.payruns.findMany({
       where: eq(payruns.companyId, session.user.companyId),
@@ -62,7 +65,13 @@ export default async function ReportsDashboardPage() {
     }),
     db.query.attendances.findMany({
       orderBy: [desc(attendances.attendanceDate)],
-      limit: 500,
+      limit: 1000,
+    }),
+    db.query.contracts.findMany({
+      where: eq(contracts.status, 'active'),
+    }),
+    db.query.leaveTypes.findMany({
+      where: eq(leaveTypes.companyId, session.user.companyId),
     }),
   ]);
 
@@ -79,6 +88,66 @@ export default async function ReportsDashboardPage() {
   const missingCheckouts = allAttendances.filter(
     (a) => a.checkIn && !a.checkOut && a.status === 'present'
   );
+
+  // Attendance Matrix breakdown
+  const attendanceMatrix = {
+    total: allAttendances.length,
+    present: allAttendances.filter((a) => a.status === 'present').length,
+    absent: allAttendances.filter((a) => a.status === 'absent').length,
+    halfDay: allAttendances.filter((a) => a.status === 'half_day').length,
+    onLeave: allAttendances.filter((a) => a.status === 'on_leave').length,
+    overtimeCount: allAttendances.filter((a) => parseFloat(a.overtimeHours?.toString() || '0') > 0).length,
+    totalOvertimeHours: Math.round(
+      allAttendances.reduce((sum, a) => sum + parseFloat(a.overtimeHours?.toString() || '0'), 0) * 10
+    ) / 10,
+    missingCheckouts: missingCheckouts.length,
+  };
+
+  // Time off matrix breakdown
+  const leaveMatrix = {
+    pendingCount: pendingLeaves.length,
+    approvedCount: allLeaves.filter((l) => l.status === 'approved').length,
+    rejectedCount: allLeaves.filter((l) => l.status === 'rejected').length,
+    totalDaysApproved: Math.round(
+      allLeaves
+        .filter((l) => l.status === 'approved')
+        .reduce((sum, l) => sum + parseFloat(l.numberOfDays.toString()), 0) * 10
+    ) / 10,
+    types: allLeaveTypes.map((lt) => ({
+      id: lt.id,
+      name: lt.name,
+      color: lt.color || 'blue',
+      approvedCount: allLeaves.filter((l) => l.leaveTypeId === lt.id && l.status === 'approved').length,
+    })),
+  };
+
+  // Department Headcount vs Expenditure breakdown
+  const departmentBreakdown = allDepartments.map((dept) => {
+    const deptEmployees = allEmployees.filter((e) => e.departmentId === dept.id);
+    const deptEmpIds = new Set(deptEmployees.map((e) => e.id));
+    const deptContracts = allContracts.filter((c) => deptEmpIds.has(c.employeeId));
+    const totalWageOutlay = deptContracts.reduce((sum, c) => sum + parseFloat(c.wage || '0'), 0);
+    const avgWage = deptContracts.length > 0 ? totalWageOutlay / deptContracts.length : 0;
+
+    return {
+      id: dept.id,
+      name: dept.name,
+      employeeCount: deptEmployees.length,
+      activeContractsCount: deptContracts.length,
+      totalWageOutlay,
+      avgWage,
+    };
+  });
+
+  // Payslip status distribution
+  const payslipStatusCounts = {
+    draft: allPayslips.filter((ps) => ps.status === 'draft').length,
+    computed: allPayslips.filter((ps) => ps.status === 'computed').length,
+    validated: allPayslips.filter((ps) => ps.status === 'validated').length,
+    approved: allPayslips.filter((ps) => ps.status === 'approved').length,
+    paid: allPayslips.filter((ps) => ps.status === 'paid').length,
+    cancelled: allPayslips.filter((ps) => ps.status === 'cancelled').length,
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -116,6 +185,10 @@ export default async function ReportsDashboardPage() {
           .reduce((sum, l) => sum + parseFloat(l.numberOfDays.toString()), 0)}
         attendancesCount={allAttendances.length}
         presentAttendancesCount={allAttendances.filter((a) => a.status === 'present').length}
+        attendanceMatrix={attendanceMatrix}
+        leaveMatrix={leaveMatrix}
+        departmentBreakdown={departmentBreakdown}
+        payslipStatusCounts={payslipStatusCounts}
         alerts={{
           missingBankCount: missingBankAccounts.length,
           pendingLeavesCount: pendingLeaves.length,

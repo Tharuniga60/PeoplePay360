@@ -156,7 +156,7 @@ export function ContractsFilterClient({
                 </td>
                 <td>
                   <Link
-                    href={`/employees/${contract.employee.id}?tab=contracts`}
+                    href={`/contracts/${contract.id}`}
                     className="text-[#6b7280] hover:text-white transition-colors"
                   >
                     <ChevronRight className="w-4 h-4" />

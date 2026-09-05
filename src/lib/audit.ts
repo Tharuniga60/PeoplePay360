@@ -1,48 +1,38 @@
 import { db } from '@/db';
-import { auditLogs } from '@/db/schema';
+import { auditLogs, type auditActionEnum } from '@/db/schema';
 
-// ─────────────────────────────────────────────
-// TYPES
-// ─────────────────────────────────────────────
+export type AuditAction = (typeof auditActionEnum.enumValues)[number];
 
-export type AuditAction =
-  | 'CREATE'
-  | 'UPDATE'
-  | 'DELETE'
-  | 'EXECUTE_PAYRUN'
-  | 'APPROVE'
-  | 'LOCK';
-
-export interface AuditEventInput {
+export interface AuditEventParams {
   companyId: string;
   actorId: string;
   entityName: string;
   entityId: string;
   action: AuditAction;
-  changes?: Record<string, unknown>;
-  ipAddress?: string;
-  userAgent?: string;
+  changes?: Record<string, any> | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
 }
 
-// ─────────────────────────────────────────────
-// LOG AUDIT EVENT
-// Persists an immutable audit trail entry to audit_logs
-// ─────────────────────────────────────────────
-
-export async function logAuditEvent(input: AuditEventInput): Promise<void> {
+/**
+ * Persist an audit event asynchronously without blocking the user response.
+ */
+export async function recordAuditEvent(params: AuditEventParams): Promise<void> {
   try {
     await db.insert(auditLogs).values({
-      companyId: input.companyId,
-      actorId: input.actorId,
-      entityName: input.entityName,
-      entityId: input.entityId,
-      action: input.action,
-      changes: input.changes ?? null,
-      ipAddress: input.ipAddress ?? null,
-      userAgent: input.userAgent ?? null,
+      companyId: params.companyId,
+      actorId: params.actorId,
+      entityName: params.entityName,
+      entityId: params.entityId,
+      action: params.action,
+      changes: params.changes ?? null,
+      ipAddress: params.ipAddress ?? null,
+      userAgent: params.userAgent ?? null,
     });
-  } catch (err) {
-    // Audit logging should never break the primary operation
-    console.error('[AuditLog] Failed to write audit event:', err);
+  } catch (error) {
+    console.error('[AUDIT LOG ERROR] Failed to record audit event:', error);
   }
 }
+
+export const logAuditEvent = recordAuditEvent;
+

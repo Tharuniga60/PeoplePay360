@@ -5,6 +5,27 @@ import { and, eq } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { format } from 'date-fns';
 
+export async function GET(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const employeeId = session.user.employeeId;
+  if (!employeeId) {
+    return NextResponse.json({ data: null, message: 'No linked employee' });
+  }
+
+  const today = format(new Date(), 'yyyy-MM-dd');
+
+  const existing = await db.query.attendances.findFirst({
+    where: and(
+      eq(attendances.employeeId, employeeId),
+      eq(attendances.attendanceDate, today)
+    ),
+  });
+
+  return NextResponse.json({ data: existing ?? null });
+}
+
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

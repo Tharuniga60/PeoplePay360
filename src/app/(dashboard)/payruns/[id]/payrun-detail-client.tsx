@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Play, CheckCircle, Receipt, AlertTriangle, Eye, Loader2, Calendar } from 'lucide-react';
+import { ArrowLeft, Play, CheckCircle, Receipt, AlertTriangle, Eye, Loader2, Calendar, ShieldCheck, Mail } from 'lucide-react';
 import { formatDate, formatCurrency, PAYRUN_STATUS_COLORS, ANOMALY_SEVERITY_COLORS, cn, snakeToTitle } from '@/lib/utils';
 import { AnomalyBanner } from '@/components/anomaly-banner';
 import { ExplainSalaryModal } from '@/components/explain-salary-modal';
@@ -59,8 +59,10 @@ interface PayrunDetailClientProps {
 
 export function PayrunDetailClient({ payrun, userRole }: PayrunDetailClientProps) {
   const [computing, setComputing] = useState(false);
+  const [validating, setValidating] = useState(false);
   const [approving, setApproving] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(false);
+  const [sendingPayslips, setSendingPayslips] = useState(false);
   const [currentPayrun, setCurrentPayrun] = useState(payrun);
   const [explainModal, setExplainModal] = useState<{ open: boolean; employeeName: string; lines: typeof payrun.payslips[0]['lines'] }>({
     open: false,
@@ -79,13 +81,27 @@ export function PayrunDetailClient({ payrun, userRole }: PayrunDetailClientProps
       const res = await fetch(`/api/payruns/${currentPayrun.id}/compute`, { method: 'POST' });
       const json = await res.json();
       if (res.ok) {
-        // Reload page to get fresh data
         window.location.reload();
       } else {
         alert(json.error ?? 'Compute failed');
       }
     } finally {
       setComputing(false);
+    }
+  }
+
+  async function handleValidate() {
+    setValidating(true);
+    try {
+      const res = await fetch(`/api/payruns/${currentPayrun.id}/validate`, { method: 'POST' });
+      const json = await res.json();
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        alert(json.error ?? 'Validation failed');
+      }
+    } finally {
+      setValidating(false);
     }
   }
 
@@ -120,6 +136,38 @@ export function PayrunDetailClient({ payrun, userRole }: PayrunDetailClientProps
     }
   }
 
+  async function handleSendPayslips() {
+    if (!confirm('Send payslips via email to all employees in this payrun?')) return;
+    setSendingPayslips(true);
+    try {
+      const res = await fetch(`/api/payruns/${currentPayrun.id}/send-payslips`, { method: 'POST' });
+      const json = await res.json();
+      if (res.ok) {
+        alert(json.message);
+      } else {
+        alert(json.error ?? 'Failed to send payslips');
+      }
+    } finally {
+      setSendingPayslips(false);
+    }
+  }
+
+  async function handleRetryFailedPayslips() {
+    if (!confirm('Retry sending payslips for failed recipients only?')) return;
+    setSendingPayslips(true);
+    try {
+      const res = await fetch(`/api/payruns/${currentPayrun.id}/send-payslips?retry_failed_only=true`, { method: 'POST' });
+      const json = await res.json();
+      if (res.ok) {
+        alert(json.message);
+      } else {
+        alert(json.error ?? 'Failed to retry payslips');
+      }
+    } finally {
+      setSendingPayslips(false);
+    }
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Back */}
@@ -132,9 +180,11 @@ export function PayrunDetailClient({ payrun, userRole }: PayrunDetailClientProps
       <div className="section-card p-6">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold text-white">{currentPayrun.name}</h1>
-            <p className="text-[#6b7280] text-sm mt-0.5">
-              {formatDate(currentPayrun.periodStart)} – {formatDate(currentPayrun.periodEnd)} ·{' '}
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-white tracking-tight">{currentPayrun.name}</h1>
+            </div>
+            <p className="text-[#6b7280] text-sm mt-1">
+              Period: {formatDate(currentPayrun.periodStart)} – {formatDate(currentPayrun.periodEnd)} &middot; Structure:{' '}
               {currentPayrun.salaryStructure?.name}
             </p>
           </div>
@@ -154,15 +204,31 @@ export function PayrunDetailClient({ payrun, userRole }: PayrunDetailClientProps
                 {computing ? <><Loader2 className="w-4 h-4 animate-spin" />Computing...</> : <><Play className="w-4 h-4" />Compute Payroll</>}
               </button>
             )}
+            {currentPayrun.status === 'computed' && canCompute && (
+              <button onClick={handleValidate} disabled={validating} className="btn-primary bg-indigo-600 hover:bg-indigo-500">
+                {validating ? <><Loader2 className="w-4 h-4 animate-spin" />Validating...</> : <><ShieldCheck className="w-4 h-4" />Validate Payrun</>}
+              </button>
+            )}
             {['computed', 'validated'].includes(currentPayrun.status) && canApprove && (
               <button onClick={handleApprove} disabled={approving} className="btn-primary">
                 {approving ? <><Loader2 className="w-4 h-4 animate-spin" />Approving...</> : <><CheckCircle className="w-4 h-4" />Approve</>}
               </button>
             )}
-            {currentPayrun.status === 'approved' && canApprove && (
+            {['validated', 'approved'].includes(currentPayrun.status) && canApprove && (
               <button onClick={handleMarkPaid} disabled={markingPaid} className="btn-primary bg-emerald-600 hover:bg-emerald-500">
                 {markingPaid ? <><Loader2 className="w-4 h-4 animate-spin" />Marking Paid...</> : <><CheckCircle className="w-4 h-4" />Mark as Paid</>}
               </button>
+            )}
+            {['validated', 'approved', 'paid'].includes(currentPayrun.status) && canCompute && (
+              <>
+                <button onClick={handleSendPayslips} disabled={sendingPayslips} className="btn-secondary inline-flex items-center gap-1.5 text-blue-400 hover:text-blue-300">
+                  {sendingPayslips ? <><Loader2 className="w-4 h-4 animate-spin" />Sending...</> : <><Mail className="w-4 h-4" />Send Payslips</>}
+                </button>
+                <button onClick={handleRetryFailedPayslips} disabled={sendingPayslips} className="btn-secondary inline-flex items-center gap-1.5 text-amber-400 hover:text-amber-300" title="Retry only failed or skipped recipient emails">
+                  <Mail className="w-3.5 h-3.5" />
+                  Retry Failed
+                </button>
+              </>
             )}
           </div>
         </div>

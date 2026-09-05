@@ -10,10 +10,12 @@ import {
 } from '@/db/schema';
 import { and, eq, desc } from 'drizzle-orm';
 import Link from 'next/link';
-import { Calendar, CheckCircle, XCircle, Clock, Plus, X } from 'lucide-react';
+import { Calendar, CheckCircle, XCircle, Clock, Plus, X, ChevronRight } from 'lucide-react';
 import { formatDate, LEAVE_STATUS_COLORS, cn, snakeToTitle, formatDateRange } from '@/lib/utils';
 import { canApproveLeave } from '@/lib/rbac';
 import { LeaveActionsClient } from '../../leaves/leave-actions-client';
+
+import { RequestsTableClient } from './requests-table-client';
 
 export const metadata: Metadata = { title: 'Time Off Requests' };
 
@@ -53,7 +55,6 @@ export default async function TimeOffRequestsPage({
   })) as LeaveWithRelations[];
 
   const pending: LeaveWithRelations[] = leaves.filter((l: LeaveWithRelations) => l.status === 'pending');
-  const others: LeaveWithRelations[] = leaves.filter((l: LeaveWithRelations) => l.status !== 'pending');
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -90,45 +91,25 @@ export default async function TimeOffRequestsPage({
             <Clock className="w-4 h-4 text-yellow-400" />
             <h2 className="text-sm font-semibold text-white">Pending Approval ({pending.length})</h2>
           </div>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Employee</th>
-                <th>Leave Type</th>
-                <th>Period</th>
-                <th>Days</th>
-                <th>Reason</th>
-                <th>Applied On</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pending.map((leave: LeaveWithRelations) => (
-                <tr key={leave.id}>
-                  <td>
-                    <p className="font-medium text-white">
-                      {leave.employee.firstName} {leave.employee.lastName}
-                    </p>
-                    <p className="text-xs text-[#4b5563]">{leave.employee.employeeCode}</p>
-                  </td>
-                  <td>
-                    <span className={cn('status-pill', 'bg-blue-500/10 text-blue-400 border border-blue-800/40')}>
-                      {leave.leaveType?.name}
-                    </span>
-                  </td>
-                  <td className="text-[#6b7280] text-xs">
-                    {formatDateRange(leave.startDate, leave.endDate)}
-                  </td>
-                  <td className="font-bold text-white">{parseFloat(leave.numberOfDays.toString())}</td>
-                  <td className="text-[#6b7280] max-w-48 truncate text-xs">{leave.reason ?? '—'}</td>
-                  <td className="text-[#6b7280] text-xs">{formatDate(leave.createdAt)}</td>
-                  <td>
-                    <LeaveActionsClient leaveId={leave.id} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <RequestsTableClient
+            leaves={pending.map((l) => ({
+              id: l.id,
+              startDate: l.startDate,
+              endDate: l.endDate,
+              numberOfDays: l.numberOfDays,
+              reason: l.reason,
+              status: l.status,
+              createdAt: l.createdAt,
+              employee: {
+                id: l.employee.id,
+                firstName: l.employee.firstName,
+                lastName: l.employee.lastName,
+                employeeCode: l.employee.employeeCode,
+              },
+              leaveType: l.leaveType ? { id: l.leaveType.id, name: l.leaveType.name } : null,
+            }))}
+            isPendingTable={true}
+          />
         </div>
       )}
 
@@ -138,48 +119,25 @@ export default async function TimeOffRequestsPage({
           <Calendar className="w-4 h-4 text-[#3b6ef0]" />
           <h2 className="text-sm font-semibold text-white">All Time Off Requests</h2>
         </div>
-        {leaves.length === 0 ? (
-          <div className="py-16 text-center">
-            <Calendar className="w-10 h-10 text-[#2a2d3e] mx-auto mb-3" />
-            <p className="text-[#4b5563] text-sm">No time off requests found.</p>
-          </div>
-        ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Employee</th>
-                <th>Leave Type</th>
-                <th>Period</th>
-                <th>Days</th>
-                <th>Status</th>
-                <th>Applied On</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leaves.map((leave: LeaveWithRelations) => (
-                <tr key={leave.id}>
-                  <td>
-                    <p className="font-medium text-white">
-                      {leave.employee.firstName} {leave.employee.lastName}
-                    </p>
-                    <p className="text-xs text-[#4b5563]">{leave.employee.employeeCode}</p>
-                  </td>
-                  <td>{leave.leaveType?.name ?? '—'}</td>
-                  <td className="text-[#6b7280] text-xs">
-                    {formatDateRange(leave.startDate, leave.endDate)}
-                  </td>
-                  <td className="font-bold text-white">{parseFloat(leave.numberOfDays.toString())}</td>
-                  <td>
-                    <span className={cn('status-pill', LEAVE_STATUS_COLORS[leave.status])}>
-                      {snakeToTitle(leave.status)}
-                    </span>
-                  </td>
-                  <td className="text-[#6b7280] text-xs">{formatDate(leave.createdAt)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        <RequestsTableClient
+          leaves={leaves.map((l) => ({
+            id: l.id,
+            startDate: l.startDate,
+            endDate: l.endDate,
+            numberOfDays: l.numberOfDays,
+            reason: l.reason,
+            status: l.status,
+            createdAt: l.createdAt,
+            employee: {
+              id: l.employee.id,
+              firstName: l.employee.firstName,
+              lastName: l.employee.lastName,
+              employeeCode: l.employee.employeeCode,
+            },
+            leaveType: l.leaveType ? { id: l.leaveType.id, name: l.leaveType.name } : null,
+          }))}
+          isPendingTable={false}
+        />
       </div>
     </div>
   );

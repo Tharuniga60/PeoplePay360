@@ -132,6 +132,18 @@ export default async function WorkingSchedulesPage() {
                     ))}
                   </div>
                 )}
+
+                <div className="pt-3 mt-3 border-t border-[#1e2235] flex items-center justify-between">
+                  <span className="text-[11px] text-[#4b5563]">
+                    {sched.scheduleLines.length} daily line(s)
+                  </span>
+                  <Link
+                    href={`/working-schedules/${sched.id}`}
+                    className="inline-flex items-center gap-1 text-xs text-[#3b6ef0] hover:text-blue-400 font-medium transition-colors"
+                  >
+                    Configure & Assign <ChevronRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
               </div>
             );
           })}

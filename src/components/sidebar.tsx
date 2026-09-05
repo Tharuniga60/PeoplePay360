@@ -173,75 +173,77 @@ export function Sidebar() {
           )}
         </div>
 
-        {/* Payroll Dropdown */}
-        <div className="pt-1">
-          <button
-            type="button"
-            onClick={() => setPayrollOpen(!payrollOpen)}
-            className={cn(
-              'sidebar-link w-full text-left justify-between',
-              isPayrollActive && 'text-white'
-            )}
-          >
-            <div className="flex items-center gap-3">
-              <DollarSign className="w-4 h-4 flex-shrink-0" />
-              <span>Payroll</span>
-            </div>
-            <ChevronDown
+        {/* Payroll Dropdown - Restricted from HR Manager */}
+        {(canCompute || role === 'employee') && (
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => setPayrollOpen(!payrollOpen)}
               className={cn(
-                'w-3.5 h-3.5 text-[#6b7280] transition-transform duration-200',
-                payrollOpen && 'rotate-180 text-white'
+                'sidebar-link w-full text-left justify-between',
+                isPayrollActive && 'text-white'
               )}
-            />
-          </button>
+            >
+              <div className="flex items-center gap-3">
+                <DollarSign className="w-4 h-4 flex-shrink-0" />
+                <span>Payroll</span>
+              </div>
+              <ChevronDown
+                className={cn(
+                  'w-3.5 h-3.5 text-[#6b7280] transition-transform duration-200',
+                  payrollOpen && 'rotate-180 text-white'
+                )}
+              />
+            </button>
 
-          {payrollOpen && (
-            <div className="pl-7 pr-1 mt-1 space-y-0.5 animate-fade-in border-l border-[#1e2235] ml-4">
-              {canCompute && (
+            {payrollOpen && (
+              <div className="pl-7 pr-1 mt-1 space-y-0.5 animate-fade-in border-l border-[#1e2235] ml-4">
+                {canCompute && (
+                  <Link
+                    href="/payroll/payruns"
+                    className={cn(
+                      'sidebar-link text-xs py-1.5',
+                      (pathname.startsWith('/payroll/payruns') || pathname.startsWith('/payruns')) && 'active'
+                    )}
+                  >
+                    Payruns
+                  </Link>
+                )}
                 <Link
-                  href="/payroll/payruns"
+                  href="/payroll/payslips"
                   className={cn(
                     'sidebar-link text-xs py-1.5',
-                    (pathname.startsWith('/payroll/payruns') || pathname.startsWith('/payruns')) && 'active'
+                    (pathname.startsWith('/payroll/payslips') || pathname.startsWith('/payslips')) && 'active'
                   )}
                 >
-                  Payruns
+                  {role === 'employee' ? 'My Payslips' : 'Payslips'}
                 </Link>
-              )}
-              <Link
-                href="/payroll/payslips"
-                className={cn(
-                  'sidebar-link text-xs py-1.5',
-                  (pathname.startsWith('/payroll/payslips') || pathname.startsWith('/payslips')) && 'active'
+                {canCompute && (
+                  <>
+                    <Link
+                      href="/payroll/structures"
+                      className={cn(
+                        'sidebar-link text-xs py-1.5',
+                        (pathname.startsWith('/payroll/structures') || pathname.startsWith('/salary-structures')) && 'active'
+                      )}
+                    >
+                      Salary Structures
+                    </Link>
+                    <Link
+                      href="/payroll/rules"
+                      className={cn(
+                        'sidebar-link text-xs py-1.5',
+                        pathname.startsWith('/payroll/rules') && 'active'
+                      )}
+                    >
+                      Salary Rules
+                    </Link>
+                  </>
                 )}
-              >
-                Payslips
-              </Link>
-              {canCompute && (
-                <>
-                  <Link
-                    href="/payroll/structures"
-                    className={cn(
-                      'sidebar-link text-xs py-1.5',
-                      (pathname.startsWith('/payroll/structures') || pathname.startsWith('/salary-structures')) && 'active'
-                    )}
-                  >
-                    Salary Structures
-                  </Link>
-                  <Link
-                    href="/payroll/rules"
-                    className={cn(
-                      'sidebar-link text-xs py-1.5',
-                      pathname.startsWith('/payroll/rules') && 'active'
-                    )}
-                  >
-                    Salary Rules
-                  </Link>
-                </>
-              )}
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Reports */}
         {canCompute && (
@@ -263,6 +265,22 @@ export function Sidebar() {
             <Settings className="w-4 h-4 flex-shrink-0" />
             <span className="flex-1">Working Schedules</span>
           </Link>
+        )}
+
+        {/* Administration (Admin only) */}
+        {role === 'admin' && (
+          <div className="pt-3 mt-3 border-t border-[#1e2235]">
+            <p className="px-3 text-[10px] font-semibold uppercase tracking-wider text-[#6b7280] mb-1">
+              Administration
+            </p>
+            <Link
+              href="/admin/users"
+              className={cn('sidebar-link', pathname.startsWith('/admin/users') && 'active')}
+            >
+              <Users className="w-4 h-4 flex-shrink-0 text-blue-400" />
+              <span className="flex-1">User Management</span>
+            </Link>
+          </div>
         )}
       </nav>
 

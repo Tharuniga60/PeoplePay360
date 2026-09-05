@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { ArrowLeft, Download, FileText, Loader2 } from 'lucide-react';
+import { ArrowLeft, Download, FileText, Loader2, Printer, RotateCcw, Mail } from 'lucide-react';
 import { formatDate, formatCurrency, PAYRUN_STATUS_COLORS, cn, snakeToTitle } from '@/lib/utils';
 
 // Dynamically import PDF utilities — client-side only
@@ -95,6 +95,9 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export function PayslipViewerClient({ payslip }: PayslipViewerClientProps) {
+  const [recomputing, setRecomputing] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
+
   const emp = payslip.employee;
   const payrun = payslip.payrun;
 
@@ -102,6 +105,46 @@ export function PayslipViewerClient({ payslip }: PayslipViewerClientProps) {
   const grossLine = payslip.lines.find((l) => l.category === 'GROSS' && !l.calculationTrace.skipped);
   const deductions = payslip.lines.filter((l) => l.category === 'DED' && !l.calculationTrace.skipped);
   const netLine = payslip.lines.find((l) => l.category === 'NET' && !l.calculationTrace.skipped);
+
+  async function handleRecompute() {
+    if (!confirm('Recompute salary rules and update deductions/gross for this payslip?')) return;
+    setRecomputing(true);
+    try {
+      const res = await fetch(`/api/payslips/${payslip.id}/recompute`, { method: 'POST' });
+      const json = await res.json();
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        alert(json.error || 'Recompute failed');
+      }
+    } catch {
+      alert('Network error while recomputing');
+    } finally {
+      setRecomputing(false);
+    }
+  }
+
+  async function handleSendEmail() {
+    if (!confirm(`Send payslip via email directly to ${emp.email}?`)) return;
+    setSendingEmail(true);
+    try {
+      const res = await fetch(`/api/payslips/${payslip.id}/send`, { method: 'POST' });
+      const json = await res.json();
+      if (res.ok) {
+        alert(json.message);
+      } else {
+        alert(json.error || 'Failed to send payslip email');
+      }
+    } catch {
+      alert('Network error sending email');
+    } finally {
+      setSendingEmail(false);
+    }
+  }
+
+  function handlePrint() {
+    window.print();
+  }
 
   // Build PDF data
   const pdfData = {
@@ -143,9 +186,9 @@ export function PayslipViewerClient({ payslip }: PayslipViewerClientProps) {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in print:bg-white print:text-black">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex items-center justify-between flex-wrap gap-3 print:hidden">
         <div>
           <Link href={`/payruns/${payrun.id}`} className="inline-flex items-center gap-1.5 text-sm text-[#6b7280] hover:text-white transition-colors mb-3">
             <ArrowLeft className="w-4 h-4" />
@@ -157,20 +200,51 @@ export function PayslipViewerClient({ payslip }: PayslipViewerClientProps) {
           </p>
         </div>
 
-        {/* Zero-Storage PDF Download */}
-        {PayslipPDFDocument && (
-          <PDFDownloadLink
-            document={<PayslipPDFDocument data={pdfData} />}
-            fileName={`payslip-${emp.employeeCode}-${payrun.periodStart}.pdf`}
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {payslip.status !== 'paid' && (
+            <button
+              onClick={handleRecompute}
+              disabled={recomputing}
+              className="btn-secondary inline-flex items-center gap-1.5 text-blue-400 hover:text-blue-300 text-xs"
+            >
+              {recomputing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+              Recompute
+            </button>
+          )}
+
+          <button
+            onClick={handleSendEmail}
+            disabled={sendingEmail}
+            className="btn-secondary inline-flex items-center gap-1.5 text-purple-400 hover:text-purple-300 text-xs"
           >
-            {/* @ts-ignore - known react-pdf type issue */}
-            {(props: any) => (
-              <button className="btn-primary" disabled={props.loading}>
-                {props.loading ? <><Loader2 className="w-4 h-4 animate-spin" />Generating PDF...</> : <><Download className="w-4 h-4" />Download PDF</>}
-              </button>
-            )}
-          </PDFDownloadLink>
-        )}
+            {sendingEmail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+            Email Payslip
+          </button>
+
+          <button
+            onClick={handlePrint}
+            className="btn-secondary inline-flex items-center gap-1.5 text-slate-300 hover:text-white text-xs"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            Print Payslip
+          </button>
+
+          {/* Zero-Storage PDF Download */}
+          {PayslipPDFDocument && (
+            <PDFDownloadLink
+              document={<PayslipPDFDocument data={pdfData} />}
+              fileName={`payslip-${emp.employeeCode}-${payrun.periodStart}.pdf`}
+            >
+              {/* @ts-ignore - known react-pdf type issue */}
+              {(props: any) => (
+                <button className="btn-primary text-xs" disabled={props.loading}>
+                  {props.loading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Generating PDF...</> : <><Download className="w-3.5 h-3.5" />Download PDF</>}
+                </button>
+              )}
+            </PDFDownloadLink>
+          )}
+        </div>
       </div>
 
       {/* Employee Info Card */}

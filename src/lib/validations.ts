@@ -36,6 +36,11 @@ export const createEmployeeSchema = z.object({
 
 export type CreateEmployeeInput = z.infer<typeof createEmployeeSchema>;
 
+export const updateEmployeeSchema = createEmployeeSchema.partial().extend({
+  isActive: z.boolean().optional(),
+});
+export type UpdateEmployeeInput = z.infer<typeof updateEmployeeSchema>;
+
 // ─────────────────────────────────────────────
 // CONTRACTS
 // ─────────────────────────────────────────────
@@ -53,6 +58,9 @@ export const createContractSchema = z.object({
 });
 
 export type CreateContractInput = z.infer<typeof createContractSchema>;
+
+export const updateContractSchema = createContractSchema.partial();
+export type UpdateContractInput = z.infer<typeof updateContractSchema>;
 
 // ─────────────────────────────────────────────
 // ATTENDANCE
@@ -174,20 +182,64 @@ export const createSalaryRuleSchema = z.object({
 });
 export type CreateSalaryRuleInput = z.infer<typeof createSalaryRuleSchema>;
 
+export const updateSalaryRuleSchema = createSalaryRuleSchema.partial().extend({
+  isActive: z.boolean().optional(),
+});
+export type UpdateSalaryRuleInput = z.infer<typeof updateSalaryRuleSchema>;
+
 export const createLeaveTypeSchema = z.object({
   companyId: z.string().uuid(),
   name: z.string().min(1).max(255),
   code: z.string().min(1).max(50),
   description: z.string().optional(),
+  unit: z.enum(['days', 'hours']).default('days'),
+  requiresAllocation: z.boolean().default(true),
+  approvalWorkflow: z.string().default('manager'),
+  color: z.string().default('blue'),
   isPaid: z.boolean().default(true),
   maxDaysPerYear: z.number().int().min(0).default(0),
 });
 export type CreateLeaveTypeInput = z.infer<typeof createLeaveTypeSchema>;
+
+export const updateLeaveTypeSchema = createLeaveTypeSchema.partial();
+export type UpdateLeaveTypeInput = z.infer<typeof updateLeaveTypeSchema>;
 
 export const createLeaveAllocationSchema = z.object({
   employeeId: z.string().uuid(),
   leaveTypeId: z.string().uuid(),
   year: z.number().int().min(2000).max(2100),
   totalDays: z.number().positive(),
+  status: z.enum(['to_approve', 'approved', 'refused']).default('approved'),
+  validityStart: z.string().optional(),
+  validityEnd: z.string().optional(),
+  notes: z.string().optional(),
 });
 export type CreateLeaveAllocationInput = z.infer<typeof createLeaveAllocationSchema>;
+
+// ─────────────────────────────────────────────
+// USERS (Admin)
+// ─────────────────────────────────────────────
+
+export const createUserSchema = z.object({
+  email: z.string().email(),
+  password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters long')
+    .regex(/[0-9]/, 'Password must include at least one numeric digit'),
+  role: z.enum(['employee', 'hr_manager', 'hr_payroll_user', 'hr_payroll_manager', 'admin']),
+  employeeId: z.string().uuid().optional().nullable(),
+  isActive: z.boolean().default(true),
+});
+export type CreateUserInput = z.infer<typeof createUserSchema>;
+
+export const updateUserSchema = z.object({
+  role: z.enum(['employee', 'hr_manager', 'hr_payroll_user', 'hr_payroll_manager', 'admin']).optional(),
+  employeeId: z.string().uuid().optional().nullable(),
+  isActive: z.boolean().optional(),
+  password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters long')
+    .regex(/[0-9]/, 'Password must include at least one numeric digit')
+    .optional(),
+});
+export type UpdateUserInput = z.infer<typeof updateUserSchema>;

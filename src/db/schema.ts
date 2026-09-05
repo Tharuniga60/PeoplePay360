@@ -12,6 +12,7 @@ import {
   time,
   jsonb,
   unique,
+  index,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
@@ -105,6 +106,11 @@ export const auditActionEnum = pgEnum('audit_action_enum', [
   'EXECUTE_PAYRUN',
   'APPROVE',
   'LOCK',
+  'VALIDATE',
+  'MARK_PAID',
+  'RESET_PASSWORD',
+  'CORRECT',
+  'SEND_EMAIL',
 ]);
 
 // ─────────────────────────────────────────────
@@ -261,7 +267,11 @@ export const employees = pgTable('employees', {
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+}, (table) => ({
+  idxEmployeesCompany: index('idx_employees_company_id').on(table.companyId),
+  idxEmployeesCode: index('idx_employees_code').on(table.employeeCode),
+  idxEmployeesDept: index('idx_employees_dept_id').on(table.departmentId),
+}));
 
 // ─────────────────────────────────────────────
 // SALARY STRUCTURES
@@ -301,7 +311,11 @@ export const contracts = pgTable('contracts', {
   notes: text('notes'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+}, (table) => ({
+  idxContractsEmpStatus: index('idx_contracts_emp_status').on(table.employeeId, table.status),
+  idxContractsStructure: index('idx_contracts_structure_id').on(table.salaryStructureId),
+  idxContractsDates: index('idx_contracts_dates').on(table.startDate, table.endDate),
+}));
 
 // ─────────────────────────────────────────────
 // SALARY RULES
@@ -324,7 +338,10 @@ export const salaryRules = pgTable('salary_rules', {
   appearsOnPayslip: boolean('appears_on_payslip').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+}, (table) => ({
+  idxSalaryRulesStructure: index('idx_salary_rules_structure_id').on(table.salaryStructureId),
+  idxSalaryRulesSeq: index('idx_salary_rules_seq').on(table.sequence),
+}));
 
 // ─────────────────────────────────────────────
 // ATTENDANCES
@@ -346,6 +363,8 @@ export const attendances = pgTable('attendances', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (table) => ({
   uniqEmployeeDate: unique().on(table.employeeId, table.attendanceDate),
+  idxAttendancesEmpDate: index('idx_attendances_emp_date').on(table.employeeId, table.attendanceDate),
+  idxAttendancesStatus: index('idx_attendances_status').on(table.status),
 }));
 
 // ─────────────────────────────────────────────
@@ -360,11 +379,17 @@ export const leaveTypes = pgTable('leave_types', {
   name: varchar('name', { length: 255 }).notNull(),
   code: varchar('code', { length: 50 }).notNull(),
   description: text('description'),
+  unit: varchar('unit', { length: 20 }).notNull().default('days'),
+  requiresAllocation: boolean('requires_allocation').notNull().default(true),
+  approvalWorkflow: varchar('approval_workflow', { length: 50 }).notNull().default('manager'),
+  color: varchar('color', { length: 50 }).default('blue'),
   isPaid: boolean('is_paid').notNull().default(true),
   maxDaysPerYear: integer('max_days_per_year').default(0),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
-});
+}, (table) => ({
+  idxLeaveTypesCompany: index('idx_leave_types_company_id').on(table.companyId),
+}));
 
 // ─────────────────────────────────────────────
 // LEAVE ALLOCATIONS
@@ -381,9 +406,16 @@ export const leaveAllocations = pgTable('leave_allocations', {
   year: integer('year').notNull(),
   totalDays: numeric('total_days', { precision: 6, scale: 2 }).notNull(),
   usedDays: numeric('used_days', { precision: 6, scale: 2 }).notNull().default('0'),
+  status: varchar('status', { length: 50 }).notNull().default('approved'), // 'to_approve' | 'approved' | 'refused'
+  validityStart: date('validity_start'),
+  validityEnd: date('validity_end'),
+  notes: text('notes'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+}, (table) => ({
+  idxLeaveAllocEmpYear: index('idx_leave_alloc_emp_year').on(table.employeeId, table.year),
+  idxLeaveAllocStatus: index('idx_leave_alloc_status').on(table.status),
+}));
 
 // ─────────────────────────────────────────────
 // LEAVE REQUESTS
@@ -407,7 +439,10 @@ export const leaveRequests = pgTable('leave_requests', {
   rejectionReason: text('rejection_reason'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+}, (table) => ({
+  idxLeaveRequestsEmpStatus: index('idx_leave_requests_emp_status').on(table.employeeId, table.status),
+  idxLeaveRequestsDates: index('idx_leave_requests_dates').on(table.startDate, table.endDate),
+}));
 
 // ─────────────────────────────────────────────
 // PAYRUNS
@@ -432,11 +467,15 @@ export const payruns = pgTable('payruns', {
   computedAt: timestamp('computed_at'),
   approvedAt: timestamp('approved_at'),
   approvedById: uuid('approved_by_id'),
+  paidAt: timestamp('paid_at'),
   notes: text('notes'),
   createdById: uuid('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+}, (table) => ({
+  idxPayrunsCompanyStatus: index('idx_payruns_company_status').on(table.companyId, table.status),
+  idxPayrunsPeriod: index('idx_payruns_period').on(table.periodStart, table.periodEnd),
+}));
 
 // ─────────────────────────────────────────────
 // PAYSLIPS
@@ -470,7 +509,10 @@ export const payslips = pgTable('payslips', {
   status: payrunStatusEnum('status').notNull().default('draft'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+}, (table) => ({
+  idxPayslipsPayrunEmp: index('idx_payslips_payrun_emp').on(table.payrunId, table.employeeId),
+  idxPayslipsStatus: index('idx_payslips_status').on(table.status),
+}));
 
 // ─────────────────────────────────────────────
 // PAYSLIP LINES
@@ -490,7 +532,9 @@ export const payslipLines = pgTable('payslip_lines', {
   // Audit trace: stores formula, resolved variables, intermediate values
   calculationTrace: jsonb('calculation_trace').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
-});
+}, (table) => ({
+  idxPayslipLinesCategory: index('idx_payslip_lines_category').on(table.payslipId, table.category),
+}));
 
 // ─────────────────────────────────────────────
 // PAYRUN ANOMALIES
@@ -546,7 +590,9 @@ export const users = pgTable('users', {
   lastLoginAt: timestamp('last_login_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+}, (table) => ({
+  idxUsersCompanyRole: index('idx_users_company_role').on(table.companyId, table.role),
+}));
 
 // ─────────────────────────────────────────────
 // AUDIT LOGS
@@ -568,6 +614,30 @@ export const auditLogs = pgTable('audit_logs', {
 });
 
 // ─────────────────────────────────────────────
+// EMAIL DISPATCHES
+// ─────────────────────────────────────────────
+
+export const emailDispatches = pgTable('email_dispatches', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  companyId: uuid('company_id')
+    .notNull()
+    .references(() => companies.id, { onDelete: 'cascade' }),
+  payrunId: uuid('payrun_id').references(() => payruns.id, { onDelete: 'cascade' }),
+  payslipId: uuid('payslip_id').references(() => payslips.id, { onDelete: 'cascade' }),
+  recipientEmail: varchar('recipient_email', { length: 255 }).notNull(),
+  recipientName: varchar('recipient_name', { length: 255 }),
+  status: varchar('status', { length: 50 }).notNull().default('queued'),
+  providerMessageId: varchar('provider_message_id', { length: 255 }),
+  errorMessage: text('error_message'),
+  attempts: integer('attempts').notNull().default(1),
+  lastAttemptAt: timestamp('last_attempt_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (table) => ({
+  idxEmailDispatchesPayrun: index('idx_email_dispatches_payrun').on(table.payrunId, table.status),
+  idxEmailDispatchesPayslip: index('idx_email_dispatches_payslip').on(table.payslipId),
+}));
+
+// ─────────────────────────────────────────────
 // RELATIONS
 // ─────────────────────────────────────────────
 
@@ -580,6 +650,7 @@ export const companiesRelations = relations(companies, ({ many }) => ({
   payruns: many(payruns),
   users: many(users),
   auditLogs: many(auditLogs),
+  emailDispatches: many(emailDispatches),
 }));
 
 export const branchesRelations = relations(branches, ({ one, many }) => ({
@@ -670,6 +741,7 @@ export const payrunsRelations = relations(payruns, ({ one, many }) => ({
   salaryStructure: one(salaryStructures, { fields: [payruns.salaryStructureId], references: [salaryStructures.id] }),
   payslips: many(payslips),
   anomalies: many(payrunAnomalies),
+  emailDispatches: many(emailDispatches),
 }));
 
 export const payslipsRelations = relations(payslips, ({ one, many }) => ({
@@ -678,6 +750,7 @@ export const payslipsRelations = relations(payslips, ({ one, many }) => ({
   contract: one(contracts, { fields: [payslips.contractId], references: [contracts.id] }),
   lines: many(payslipLines),
   anomalies: many(payrunAnomalies),
+  emailDispatches: many(emailDispatches),
 }));
 
 export const payslipLinesRelations = relations(payslipLines, ({ one }) => ({
@@ -698,6 +771,12 @@ export const usersRelations = relations(users, ({ one }) => ({
 
 export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
   company: one(companies, { fields: [auditLogs.companyId], references: [companies.id] }),
+}));
+
+export const emailDispatchesRelations = relations(emailDispatches, ({ one }) => ({
+  company: one(companies, { fields: [emailDispatches.companyId], references: [companies.id] }),
+  payrun: one(payruns, { fields: [emailDispatches.payrunId], references: [payruns.id] }),
+  payslip: one(payslips, { fields: [emailDispatches.payslipId], references: [payslips.id] }),
 }));
 
 // ─────────────────────────────────────────────
@@ -730,3 +809,5 @@ export type PayrunAnomaly = typeof payrunAnomalies.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type AuditLog = typeof auditLogs.$inferSelect;
+export type EmailDispatch = typeof emailDispatches.$inferSelect;
+export type NewEmailDispatch = typeof emailDispatches.$inferInsert;
