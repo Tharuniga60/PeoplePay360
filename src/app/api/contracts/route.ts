@@ -34,7 +34,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Validation error', issues: parsed.error.issues }, { status: 400 });
   }
 
-  const [contract] = await db.insert(contracts).values(parsed.data).returning();
+  const insertData = {
+    ...parsed.data,
+    wage: parsed.data.wage.toString(),
+  };
+
+  const [contract] = await db.insert(contracts).values(insertData).returning();
 
   await logAuditEvent({
     companyId: session.user.companyId,
@@ -42,7 +47,7 @@ export async function POST(req: NextRequest) {
     entityName: 'contracts',
     entityId: contract.id,
     action: 'CREATE',
-    changes: parsed.data,
+    changes: insertData,
   });
 
   return NextResponse.json({ data: contract }, { status: 201 });
